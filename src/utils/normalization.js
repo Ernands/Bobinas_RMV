@@ -31,6 +31,7 @@ const REQUIRED_FIELDS = ['openingDate', 'exitDate', 'bobbinType', 'quantity'];
 
 export function normalizeText(text) {
   return String(text ?? '')
+    .replace(/[\u00ad\u200b-\u200f\ufeff\ufffd]/g, '')
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase()

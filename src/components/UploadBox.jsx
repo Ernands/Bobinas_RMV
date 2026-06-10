@@ -5,19 +5,36 @@ import { FileSpreadsheet, UploadCloud } from 'lucide-react';
 
 function parseCsv(file) {
   return new Promise((resolve, reject) => {
-    Papa.parse(file, {
-      header: true,
-      skipEmptyLines: true,
-      transformHeader: (header) => header.trim(),
-      complete: (results) => {
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const buffer = event.target.result;
+        let text = '';
+
+        try {
+          text = new TextDecoder('utf-8', { fatal: true }).decode(buffer);
+        } catch {
+          text = new TextDecoder('windows-1252').decode(buffer);
+        }
+
+        const results = Papa.parse(text, {
+          header: true,
+          skipEmptyLines: true,
+          transformHeader: (header) => header.trim(),
+        });
+
         if (results.errors?.length) {
           reject(new Error(results.errors[0].message));
           return;
         }
+
         resolve(results.data);
-      },
-      error: reject,
-    });
+      } catch (error) {
+        reject(error);
+      }
+    };
+    reader.onerror = () => reject(new Error('Não foi possível ler o arquivo CSV.'));
+    reader.readAsArrayBuffer(file);
   });
 }
 
