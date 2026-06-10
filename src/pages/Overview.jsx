@@ -58,12 +58,12 @@ function buildForecastRows(forecast) {
   ];
 }
 
-function isPendingStatus(status) {
+function isSentStatus(status) {
   return String(status || '')
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .trim()
-    .toLowerCase() === 'pendente';
+    .toLowerCase() === 'enviado';
 }
 
 export default function Overview({ analytics, hasData }) {
@@ -74,7 +74,7 @@ export default function Overview({ analytics, hasData }) {
   const sentShippingRows = monthlyShipping.map((shippingRow) => {
     const sentRecords = analytics.records?.filter((record) => (
       record.exitMonth === shippingRow.monthKey
-      && !isPendingStatus(record.status)
+      && isSentStatus(record.status)
     )) || [];
     const sentUnits = sentRecords.reduce((sum, record) => sum + record.quantity, 0);
     return {
@@ -121,7 +121,7 @@ export default function Overview({ analytics, hasData }) {
           icon={Truck}
           title="Unidades Enviadas"
           value={formatInteger(totalSentUnits)}
-          subtitle="sem status pendente"
+          subtitle="somente status enviado"
           tone="success"
         />
         <MetricCard
