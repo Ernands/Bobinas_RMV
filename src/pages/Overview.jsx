@@ -10,7 +10,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import { Boxes, ClipboardList, DollarSign, PackageCheck } from 'lucide-react';
+import { Boxes, ClipboardList, DollarSign, PackageCheck, Truck } from 'lucide-react';
 import AlertBox from '../components/AlertBox';
 import ChartCard from '../components/ChartCard';
 import MetricCard from '../components/MetricCard';
@@ -58,17 +58,37 @@ function buildForecastRows(forecast) {
   ];
 }
 
+function isPendingStatus(status) {
+  return String(status || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase() === 'pendente';
+}
+
 export default function Overview({ analytics, hasData }) {
   const { summary, monthlyDemand, monthlyShipping, alerts } = analytics;
   const totalDemandUnits = monthlyDemand.reduce((sum, row) => sum + row.units, 0);
   const totalBoxes = monthlyDemand.reduce((sum, row) => sum + row.minBoxes16 + row.minBoxes30, 0);
   const totalCost = monthlyDemand.reduce((sum, row) => sum + row.totalCost, 0);
+  const sentShippingRows = monthlyShipping.map((shippingRow) => {
+    const sentRecords = analytics.records?.filter((record) => (
+      record.exitMonth === shippingRow.monthKey
+      && !isPendingStatus(record.status)
+    )) || [];
+    const sentUnits = sentRecords.reduce((sum, record) => sum + record.quantity, 0);
+    return {
+      ...shippingRow,
+      sentUnits,
+    };
+  });
+  const totalSentUnits = sentShippingRows.reduce((sum, row) => sum + row.sentUnits, 0);
   const monthlyChart = monthlyDemand.map((row) => {
-    const shipping = monthlyShipping.find((item) => item.monthKey === row.monthKey);
+    const shipping = sentShippingRows.find((item) => item.monthKey === row.monthKey);
     return {
       month: row.month,
       solicitadas: row.units,
-      enviadas: shipping?.units || 0,
+      enviadas: shipping?.sentUnits || 0,
       caixas: row.minBoxes16 + row.minBoxes30,
     };
   });
@@ -90,6 +110,13 @@ export default function Overview({ analytics, hasData }) {
           value={formatInteger(totalDemandUnits)}
           subtitle="pela data de abertura"
           tone="primary"
+        />
+        <MetricCard
+          icon={Truck}
+          title="Unidades Enviadas"
+          value={formatInteger(totalSentUnits)}
+          subtitle="sem status pendente"
+          tone="success"
         />
         <MetricCard
           icon={PackageCheck}

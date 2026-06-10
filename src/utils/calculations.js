@@ -870,6 +870,7 @@ export function buildAnalytics(records, purchases = [], includePartialMonth = fa
   const coverage = buildCoverage(enrichedPurchases, monthlyDemand, partialMonth);
 
   return {
+    records,
     summary: buildSummary(records),
     monthlyDemand,
     monthlyShipping,
