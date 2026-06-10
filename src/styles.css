@@ -343,6 +343,17 @@ button:disabled {
   gap: 12px;
 }
 
+.destination-filters {
+  display: grid;
+  grid-template-columns: minmax(140px, 180px) minmax(260px, 1fr) minmax(150px, 180px) minmax(220px, auto);
+  gap: 12px;
+  align-items: end;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 16px;
+}
+
 .field,
 .check-field,
 .switch-field {
@@ -762,6 +773,24 @@ tbody tr:last-child td {
   color: #991b1b;
 }
 
+.uf-pill {
+  display: inline-flex;
+  min-width: 36px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  padding: 4px 9px;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.uf-pill.invalid {
+  background: #fef3c7;
+  color: #92400e;
+}
+
 .export-card {
   display: flex;
   min-height: 132px;
@@ -801,6 +830,10 @@ tbody tr:last-child td {
   .purchase-form {
     grid-template-columns: repeat(3, 1fr);
   }
+
+  .destination-filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 900px) {
@@ -839,6 +872,10 @@ tbody tr:last-child td {
   .export-grid,
   .filters-grid,
   .purchase-form {
+    grid-template-columns: 1fr;
+  }
+
+  .destination-filters {
     grid-template-columns: 1fr;
   }
 }

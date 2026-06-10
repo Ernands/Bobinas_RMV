@@ -179,7 +179,7 @@ export default function App() {
   };
 
   return (
-    <div className="app-shell">
+    <div className="app-shell notranslate" translate="no">
       <Sidebar activeTab={activeTab} onChange={setActiveTab} />
       <main className="main-shell">
         <Header activeLabel={MENU.find((item) => item.id === activeTab)?.label} onPrint={() => window.print()} />
