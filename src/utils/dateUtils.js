@@ -11,6 +11,10 @@ function isValidDate(date) {
 }
 
 function makeLocalDate(year, monthIndex, day) {
+  if (!Number.isFinite(year) || year < 2000 || year > 2100) {
+    return null;
+  }
+
   const date = new Date(year, monthIndex, day);
   date.setHours(0, 0, 0, 0);
   return isValidDate(date) ? date : null;

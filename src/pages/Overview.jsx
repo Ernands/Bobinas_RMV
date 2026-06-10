@@ -92,6 +92,12 @@ export default function Overview({ analytics, hasData }) {
       caixas: row.minBoxes16 + row.minBoxes30,
     };
   });
+  const monthlySummaryRows = monthlyDemand.slice(-8).map((row) => ({
+    ...row,
+    boxes16: row.minBoxes16,
+    boxes30: row.minBoxes30,
+    boxesTotal: row.minBoxes16 + row.minBoxes30,
+  }));
   const forecast16Rows = buildForecastRows(analytics.bobbin16.forecast);
   const forecast30Rows = buildForecastRows(analytics.bobbin30.forecast);
 
@@ -166,7 +172,25 @@ export default function Overview({ analytics, hasData }) {
         </ChartCard>
       </section>
 
-      <section className="cards-grid three">
+      <ChartCard title="Resumo Mensal" subtitle="Demanda por abertura detalhada por tipo">
+        <DataTable
+          columns={[
+            { key: 'monthKey', label: 'Mês', value: (row) => row.month },
+            { key: 'units', label: 'Unidades totais', value: (row) => formatInteger(row.units), sortValue: (row) => row.units },
+            { key: 'boxesTotal', label: 'Caixas totais', value: (row) => formatInteger(row.boxesTotal), sortValue: (row) => row.boxesTotal },
+            { key: 'totalCost', label: 'Valor total', value: (row) => formatCurrency(row.totalCost), sortValue: (row) => row.totalCost },
+            { key: 'units16', label: 'Unid. 56x16', value: (row) => formatInteger(row.units16), sortValue: (row) => row.units16 },
+            { key: 'boxes16', label: 'Caixas 56x16', value: (row) => formatInteger(row.boxes16), sortValue: (row) => row.boxes16 },
+            { key: 'cost16', label: 'Valor 56x16', value: (row) => formatCurrency(row.cost16), sortValue: (row) => row.cost16 },
+            { key: 'units30', label: 'Unid. 56x30', value: (row) => formatInteger(row.units30), sortValue: (row) => row.units30 },
+            { key: 'boxes30', label: 'Caixas 56x30', value: (row) => formatInteger(row.boxes30), sortValue: (row) => row.boxes30 },
+            { key: 'cost30', label: 'Valor 56x30', value: (row) => formatCurrency(row.cost30), sortValue: (row) => row.cost30 },
+          ]}
+          rows={monthlySummaryRows}
+        />
+      </ChartCard>
+
+      <section className="cards-grid two">
         <ChartCard title="Previsão 56 MM X 16 M" subtitle="Cenários para próximo pedido">
           <DataTable
             columns={[
@@ -190,18 +214,6 @@ export default function Overview({ analytics, hasData }) {
             ]}
             emptyMessage="Dados insuficientes para previsão."
             rows={forecast30Rows}
-          />
-        </ChartCard>
-
-        <ChartCard title="Resumo Mensal" subtitle="Demanda por abertura">
-          <DataTable
-            columns={[
-              { key: 'monthKey', label: 'Mês', value: (row) => row.month },
-              { key: 'units', label: 'Unidades', value: (row) => formatInteger(row.units), sortValue: (row) => row.units },
-              { key: 'boxes', label: 'Caixas equivalentes', value: (row) => formatInteger(row.minBoxes16 + row.minBoxes30), sortValue: (row) => row.minBoxes16 + row.minBoxes30 },
-              { key: 'cost', label: 'Custo', value: (row) => formatCurrency(row.totalCost), sortValue: (row) => row.totalCost },
-            ]}
-            rows={monthlyDemand.slice(-8)}
           />
         </ChartCard>
       </section>
