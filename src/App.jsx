@@ -24,10 +24,12 @@ import Coverage from './pages/Coverage';
 import Destinations from './pages/Destinations';
 import Exports from './pages/Exports';
 import { applyFilters, buildAnalytics } from './utils/calculations';
+import { formatMonth } from './utils/dateUtils';
 import { normalizeRows } from './utils/normalization';
 import { loadPurchases, savePurchases } from './utils/storage';
 
 const EMPTY_FILTERS = {
+  referenceMonth: '',
   openingFrom: '',
   openingTo: '',
   exitFrom: '',
@@ -58,6 +60,25 @@ function uniqueOptions(records, field) {
   return Array.from(
     new Set(records.map((record) => record[field]).filter((value) => value && value !== 'Não informado')),
   ).sort((a, b) => a.localeCompare(b, 'pt-BR'));
+}
+
+function uniqueMonthOptions(records) {
+  const months = new Set();
+  records.forEach((record) => {
+    if (record.openingMonth) {
+      months.add(record.openingMonth);
+    }
+    if (record.exitMonth) {
+      months.add(record.exitMonth);
+    }
+  });
+
+  return Array.from(months)
+    .sort()
+    .map((monthKey) => ({
+      value: monthKey,
+      label: formatMonth(monthKey),
+    }));
 }
 
 function Sidebar({ activeTab, onChange }) {
@@ -119,6 +140,7 @@ export default function App() {
   );
 
   const options = useMemo(() => ({
+    months: uniqueMonthOptions(records),
     bobbinTypes: uniqueOptions(records, 'bobbinType'),
     ufs: uniqueOptions(records, 'uf'),
     destinations: uniqueOptions(records, 'destination'),

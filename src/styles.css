@@ -319,6 +319,24 @@ button:disabled {
   padding: 16px;
 }
 
+.filters-panel.collapsed .section-heading.compact {
+  margin-bottom: 0;
+}
+
+.filter-summary {
+  color: #6b7280;
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.filters-toggle svg {
+  transition: transform 160ms ease;
+}
+
+.filters-toggle.open svg {
+  transform: rotate(180deg);
+}
+
 .filters-grid {
   display: grid;
   grid-template-columns: repeat(6, minmax(130px, 1fr));
@@ -622,6 +640,10 @@ table {
   width: 100%;
   min-width: 720px;
   border-collapse: collapse;
+}
+
+.cards-grid.three .chart-card table {
+  min-width: 520px;
 }
 
 th,

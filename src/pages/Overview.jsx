@@ -26,6 +26,38 @@ function DashboardEmptyState() {
   );
 }
 
+function buildForecastRows(forecast) {
+  if (forecast.status !== 'ok') {
+    return [];
+  }
+
+  const recommendedBase = Math.max(forecast.avg3, forecast.maxRecentUnits);
+
+  return [
+    {
+      id: 'minimum',
+      scenario: 'Mínimo',
+      units: forecast.avg3,
+      boxes: forecast.minimumBoxes,
+      note: 'Média dos últimos 3 meses',
+    },
+    {
+      id: 'recommended',
+      scenario: 'Recomendado',
+      units: recommendedBase * 1.08,
+      boxes: forecast.recommendedBoxes,
+      note: 'Maior referência recente + 8%',
+    },
+    {
+      id: 'safe',
+      scenario: 'Seguro',
+      units: recommendedBase * 1.08 * 1.12,
+      boxes: forecast.safeBoxes,
+      note: 'Recomendado + 12%',
+    },
+  ];
+}
+
 export default function Overview({ analytics, hasData }) {
   const { summary, monthlyDemand, monthlyShipping, alerts } = analytics;
   const totalDemandUnits = monthlyDemand.reduce((sum, row) => sum + row.units, 0);
@@ -40,30 +72,8 @@ export default function Overview({ analytics, hasData }) {
       caixas: row.minBoxes16 + row.minBoxes30,
     };
   });
-  const forecast = analytics.bobbin16.forecast;
-  const forecastRows = forecast.status === 'ok' ? [
-    {
-      id: 'minimum',
-      scenario: 'Mínimo',
-      units: forecast.avg3,
-      boxes: forecast.minimumBoxes,
-      note: 'Média dos últimos 3 meses',
-    },
-    {
-      id: 'recommended',
-      scenario: 'Recomendado',
-      units: Math.max(forecast.avg3, forecast.maxRecentUnits) * 1.08,
-      boxes: forecast.recommendedBoxes,
-      note: 'Maior referência recente + 8%',
-    },
-    {
-      id: 'safe',
-      scenario: 'Seguro',
-      units: Math.max(forecast.avg3, forecast.maxRecentUnits) * 1.08 * 1.12,
-      boxes: forecast.safeBoxes,
-      note: 'Recomendado + 12%',
-    },
-  ] : [];
+  const forecast16Rows = buildForecastRows(analytics.bobbin16.forecast);
+  const forecast30Rows = buildForecastRows(analytics.bobbin30.forecast);
 
   return (
     <div className="page-grid">
@@ -129,7 +139,7 @@ export default function Overview({ analytics, hasData }) {
         </ChartCard>
       </section>
 
-      <section className="charts-grid two">
+      <section className="cards-grid three">
         <ChartCard title="Previsão 56 MM X 16 M" subtitle="Cenários para próximo pedido">
           <DataTable
             columns={[
@@ -139,7 +149,20 @@ export default function Overview({ analytics, hasData }) {
               { key: 'note', label: 'Observação' },
             ]}
             emptyMessage="Dados insuficientes para previsão."
-            rows={forecastRows}
+            rows={forecast16Rows}
+          />
+        </ChartCard>
+
+        <ChartCard title="Previsão 56 MM X 30 M" subtitle="Cenários para próximo pedido">
+          <DataTable
+            columns={[
+              { key: 'scenario', label: 'Cenário' },
+              { key: 'units', label: 'Unidades', value: (row) => formatInteger(row.units), sortValue: (row) => row.units },
+              { key: 'boxes', label: 'Caixas equivalentes', value: (row) => formatInteger(row.boxes), sortValue: (row) => row.boxes },
+              { key: 'note', label: 'Observação' },
+            ]}
+            emptyMessage="Dados insuficientes para previsão."
+            rows={forecast30Rows}
           />
         </ChartCard>
 

@@ -210,6 +210,13 @@ function finalizeMonthlyDemand(row) {
 
 export function applyFilters(records, filters) {
   return records.filter((record) => {
+    if (
+      filters.referenceMonth
+      && record.openingMonth !== filters.referenceMonth
+      && record.exitMonth !== filters.referenceMonth
+    ) {
+      return false;
+    }
     if (filters.openingFrom && (!record.openingMonth || record.openingMonth < filters.openingFrom)) {
       return false;
     }

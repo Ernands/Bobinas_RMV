@@ -5,10 +5,10 @@ function getSortValue(column, row) {
   if (column.sortValue) {
     return column.sortValue(row);
   }
-  if (column.value) {
-    return column.value(row);
+  if (column.key && row[column.key] !== undefined && row[column.key] !== null) {
+    return row[column.key];
   }
-  return row[column.key];
+  return column.value ? column.value(row) : '';
 }
 
 export default function DataTable({ columns, rows, emptyMessage = 'Nenhum dado para exibir.', defaultSort }) {

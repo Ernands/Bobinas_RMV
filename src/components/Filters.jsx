@@ -1,4 +1,5 @@
-import { Filter, RotateCcw } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { ChevronDown, RotateCcw } from 'lucide-react';
 
 function SelectFilter({ label, value, options, onChange }) {
   return (
@@ -17,107 +18,133 @@ function SelectFilter({ label, value, options, onChange }) {
 }
 
 export default function Filters({ filters, options, onChange, onReset }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const activeCount = useMemo(() => Object.values(filters).filter(Boolean).length, [filters]);
+
   function setFilter(key, value) {
     onChange({ ...filters, [key]: value });
   }
 
   return (
-    <section className="filters-panel">
+    <section className={`filters-panel ${isOpen ? 'expanded' : 'collapsed'}`}>
       <div className="section-heading compact">
         <div>
           <p className="eyebrow">Filtros</p>
           <h2>Recorte da análise</h2>
         </div>
         <div className="heading-actions">
-          <Filter size={18} aria-hidden="true" />
+          <span className="filter-summary">
+            {activeCount ? `${activeCount} filtro(s) ativo(s)` : 'Sem filtros ativos'}
+          </span>
+          <button
+            className={`icon-button filters-toggle ${isOpen ? 'open' : ''}`}
+            type="button"
+            title={isOpen ? 'Recolher filtros' : 'Expandir filtros'}
+            onClick={() => setIsOpen((current) => !current)}
+          >
+            <ChevronDown size={18} aria-hidden="true" />
+          </button>
           <button className="icon-button" type="button" title="Limpar filtros" onClick={onReset}>
             <RotateCcw size={18} aria-hidden="true" />
           </button>
         </div>
       </div>
 
-      <div className="filters-grid">
-        <label className="field">
-          <span>Abertura de</span>
-          <input
-            type="month"
-            value={filters.openingFrom}
-            onChange={(event) => setFilter('openingFrom', event.target.value)}
+      {isOpen ? (
+        <div className="filters-grid">
+          <label className="field">
+            <span>Mês/Ano</span>
+            <select value={filters.referenceMonth} onChange={(event) => setFilter('referenceMonth', event.target.value)}>
+              <option value="">Todos</option>
+              {options.months.map((month) => (
+                <option key={month.value} value={month.value}>
+                  {month.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="field">
+            <span>Abertura de</span>
+            <input
+              type="month"
+              value={filters.openingFrom}
+              onChange={(event) => setFilter('openingFrom', event.target.value)}
+            />
+          </label>
+          <label className="field">
+            <span>Abertura até</span>
+            <input
+              type="month"
+              value={filters.openingTo}
+              onChange={(event) => setFilter('openingTo', event.target.value)}
+            />
+          </label>
+          <label className="field">
+            <span>Saída de</span>
+            <input
+              type="month"
+              value={filters.exitFrom}
+              onChange={(event) => setFilter('exitFrom', event.target.value)}
+            />
+          </label>
+          <label className="field">
+            <span>Saída até</span>
+            <input
+              type="month"
+              value={filters.exitTo}
+              onChange={(event) => setFilter('exitTo', event.target.value)}
+            />
+          </label>
+          <SelectFilter
+            label="Tipo de bobina"
+            options={options.bobbinTypes}
+            value={filters.bobbinType}
+            onChange={(value) => setFilter('bobbinType', value)}
           />
-        </label>
-        <label className="field">
-          <span>Abertura até</span>
-          <input
-            type="month"
-            value={filters.openingTo}
-            onChange={(event) => setFilter('openingTo', event.target.value)}
+          <SelectFilter label="UF" options={options.ufs} value={filters.uf} onChange={(value) => setFilter('uf', value)} />
+          <SelectFilter
+            label="Destino"
+            options={options.destinations}
+            value={filters.destination}
+            onChange={(value) => setFilter('destination', value)}
           />
-        </label>
-        <label className="field">
-          <span>Saída de</span>
-          <input
-            type="month"
-            value={filters.exitFrom}
-            onChange={(event) => setFilter('exitFrom', event.target.value)}
+          <SelectFilter
+            label="Status"
+            options={options.statuses}
+            value={filters.status}
+            onChange={(value) => setFilter('status', value)}
           />
-        </label>
-        <label className="field">
-          <span>Saída até</span>
-          <input
-            type="month"
-            value={filters.exitTo}
-            onChange={(event) => setFilter('exitTo', event.target.value)}
+          <SelectFilter
+            label="Forma de envio"
+            options={options.shippingMethods}
+            value={filters.shippingMethod}
+            onChange={(value) => setFilter('shippingMethod', value)}
           />
-        </label>
-        <SelectFilter
-          label="Tipo de bobina"
-          options={options.bobbinTypes}
-          value={filters.bobbinType}
-          onChange={(value) => setFilter('bobbinType', value)}
-        />
-        <SelectFilter label="UF" options={options.ufs} value={filters.uf} onChange={(value) => setFilter('uf', value)} />
-        <SelectFilter
-          label="Destino"
-          options={options.destinations}
-          value={filters.destination}
-          onChange={(value) => setFilter('destination', value)}
-        />
-        <SelectFilter
-          label="Status"
-          options={options.statuses}
-          value={filters.status}
-          onChange={(value) => setFilter('status', value)}
-        />
-        <SelectFilter
-          label="Forma de envio"
-          options={options.shippingMethods}
-          value={filters.shippingMethod}
-          onChange={(value) => setFilter('shippingMethod', value)}
-        />
-        <SelectFilter
-          label="Tipo de chamado"
-          options={options.callTypes}
-          value={filters.callType}
-          onChange={(value) => setFilter('callType', value)}
-        />
-        <label className="field">
-          <span>Quantidade maior que</span>
-          <input
-            min="0"
-            type="number"
-            value={filters.minQuantity}
-            onChange={(event) => setFilter('minQuantity', event.target.value)}
+          <SelectFilter
+            label="Tipo de chamado"
+            options={options.callTypes}
+            value={filters.callType}
+            onChange={(value) => setFilter('callType', value)}
           />
-        </label>
-        <label className="check-field">
-          <input
-            checked={filters.onlyAbove50}
-            type="checkbox"
-            onChange={(event) => setFilter('onlyAbove50', event.target.checked)}
-          />
-          <span>Somente pedidos acima de 50 unidades</span>
-        </label>
-      </div>
+          <label className="field">
+            <span>Quantidade maior que</span>
+            <input
+              min="0"
+              type="number"
+              value={filters.minQuantity}
+              onChange={(event) => setFilter('minQuantity', event.target.value)}
+            />
+          </label>
+          <label className="check-field">
+            <input
+              checked={filters.onlyAbove50}
+              type="checkbox"
+              onChange={(event) => setFilter('onlyAbove50', event.target.checked)}
+            />
+            <span>Somente pedidos acima de 50 unidades</span>
+          </label>
+        </div>
+      ) : null}
     </section>
   );
 }
