@@ -19,7 +19,10 @@ function SelectFilter({ label, value, options, onChange }) {
 
 export default function Filters({ filters, options, onChange, onReset }) {
   const [isOpen, setIsOpen] = useState(false);
-  const activeCount = useMemo(() => Object.values(filters).filter(Boolean).length, [filters]);
+  const activeCount = useMemo(
+    () => Object.entries(filters).filter(([key, value]) => Boolean(value) && !(key === 'statusMode' && value === 'all')).length,
+    [filters],
+  );
 
   function setFilter(key, value) {
     onChange({ ...filters, [key]: value });
@@ -61,6 +64,14 @@ export default function Filters({ filters, options, onChange, onReset }) {
                   {month.label}
                 </option>
               ))}
+            </select>
+          </label>
+          <label className="field">
+            <span>Status do relatório</span>
+            <select value={filters.statusMode} onChange={(event) => setFilter('statusMode', event.target.value)}>
+              <option value="all">Enviado e Pendente</option>
+              <option value="sent">Somente Enviado</option>
+              <option value="pending">Somente Pendente</option>
             </select>
           </label>
           <label className="field">

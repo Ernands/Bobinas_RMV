@@ -30,6 +30,7 @@ import { loadPurchases, savePurchases } from './utils/storage';
 
 const EMPTY_FILTERS = {
   referenceMonth: '',
+  statusMode: 'all',
   openingFrom: '',
   openingTo: '',
   exitFrom: '',

@@ -162,6 +162,14 @@ function safeQuantity(record) {
   return Number.isFinite(record.quantity) && record.quantity > 0 ? record.quantity : 0;
 }
 
+function normalizeStatus(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase();
+}
+
 function createMonthlyBase(monthKey) {
   return {
     monthKey,
@@ -210,6 +218,13 @@ function finalizeMonthlyDemand(row) {
 
 export function applyFilters(records, filters) {
   return records.filter((record) => {
+    const status = normalizeStatus(record.status);
+    if (filters.statusMode === 'sent' && status !== 'enviado') {
+      return false;
+    }
+    if (filters.statusMode === 'pending' && status !== 'pendente') {
+      return false;
+    }
     if (
       filters.referenceMonth
       && record.openingMonth !== filters.referenceMonth
