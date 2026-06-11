@@ -227,7 +227,7 @@ button:disabled {
 
 .upload-panel {
   display: grid;
-  grid-template-columns: minmax(320px, 1fr) auto;
+  grid-template-columns: minmax(260px, 0.72fr) minmax(520px, 1.28fr);
   gap: 16px;
   align-items: center;
   margin-top: 22px;
@@ -236,6 +236,34 @@ button:disabled {
   background: #ffffff;
   padding: 16px;
   box-shadow: 0 10px 30px rgba(15, 23, 42, 0.04);
+}
+
+.source-controls {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) auto auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.source-url {
+  display: flex;
+  height: 44px;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #6b7280;
+  padding: 0 12px;
+}
+
+.source-url input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  color: #1f2937;
 }
 
 .upload-copy {
@@ -876,6 +904,10 @@ tbody tr:last-child td {
   }
 
   .destination-filters {
+    grid-template-columns: 1fr;
+  }
+
+  .source-controls {
     grid-template-columns: 1fr;
   }
 }

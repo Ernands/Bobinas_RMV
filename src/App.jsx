@@ -26,7 +26,7 @@ import Exports from './pages/Exports';
 import { applyFilters, buildAnalytics } from './utils/calculations';
 import { formatMonth } from './utils/dateUtils';
 import { normalizeRows } from './utils/normalization';
-import { loadPurchases, savePurchases } from './utils/storage';
+import { loadDataSourceUrl, loadPurchases, saveDataSourceUrl, savePurchases } from './utils/storage';
 
 const EMPTY_FILTERS = {
   referenceMonth: '',
@@ -125,10 +125,15 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('overview');
   const [includePartialMonth, setIncludePartialMonth] = useState(false);
   const [rawPurchases, setRawPurchases] = useState(() => loadPurchases());
+  const [dataSourceUrl, setDataSourceUrl] = useState(() => loadDataSourceUrl());
 
   useEffect(() => {
     savePurchases(rawPurchases);
   }, [rawPurchases]);
+
+  useEffect(() => {
+    saveDataSourceUrl(dataSourceUrl);
+  }, [dataSourceUrl]);
 
   const filteredRecords = useMemo(
     () => applyFilters(records, filters),
@@ -184,7 +189,13 @@ export default function App() {
       <Sidebar activeTab={activeTab} onChange={setActiveTab} />
       <main className="main-shell">
         <Header activeLabel={MENU.find((item) => item.id === activeTab)?.label} onPrint={() => window.print()} />
-        <UploadBox fileName={fileName} meta={importMeta} onRowsLoaded={handleRowsLoaded} />
+        <UploadBox
+          dataSourceUrl={dataSourceUrl}
+          fileName={fileName}
+          meta={importMeta}
+          onRowsLoaded={handleRowsLoaded}
+          onSourceUrlChange={setDataSourceUrl}
+        />
 
         {records.length ? (
           <Filters

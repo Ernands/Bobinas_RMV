@@ -1,4 +1,10 @@
 const STORAGE_KEY = 'dashboard-bobinas-purchases-v1';
+const DATA_SOURCE_KEY = 'dashboard-bobinas-data-source-v1';
+export const DEFAULT_DATA_SOURCE_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQTPXzArw3sHwIxmGgPN7FSiUTV4yuvxLmlg5nbJclIoLcWH20V53-QCh_nveTC36slUff1Nsi0tNYJ/pubhtml';
+const LEGACY_DATA_SOURCE_IDS = [
+  '1B8nB1e3SM7bk3YaZl46EIMJVIkaEQOjmxppBBH0mqyo',
+  '1dFEhUjVOTUztxGduxWg8VjkHEzedaeSl',
+];
 const DEFAULT_PURCHASE_YEAR = 2026;
 
 function purchaseId(month, type) {
@@ -56,6 +62,28 @@ export function savePurchases(purchases) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(purchases));
   } catch {
     // localStorage pode estar indisponível em modo privado; a aplicação continua em memória.
+  }
+}
+
+export function loadDataSourceUrl() {
+  try {
+    const stored = localStorage.getItem(DATA_SOURCE_KEY);
+    if (stored && !LEGACY_DATA_SOURCE_IDS.some((id) => stored.includes(id))) {
+      return stored;
+    }
+
+    localStorage.setItem(DATA_SOURCE_KEY, DEFAULT_DATA_SOURCE_URL);
+    return DEFAULT_DATA_SOURCE_URL;
+  } catch {
+    return DEFAULT_DATA_SOURCE_URL;
+  }
+}
+
+export function saveDataSourceUrl(url) {
+  try {
+    localStorage.setItem(DATA_SOURCE_KEY, url || '');
+  } catch {
+    // localStorage pode estar indisponível; a URL continua editável na sessão.
   }
 }
 
