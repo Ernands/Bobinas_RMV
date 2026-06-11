@@ -1,17 +1,19 @@
 # Dashboard de Bobinas
 
-Aplicação web estática para analisar movimentação de bobinas a partir de planilhas CSV ou XLSX importadas manualmente no navegador.
+Aplicação web estática para analisar movimentação de bobinas e envios dos Correios a partir de Google Sheets publicado ou planilhas CSV/XLSX importadas manualmente no navegador.
 
-Repositório previsto: [Ernands/Bobinas_RMV](https://github.com/Ernands/Bobinas_RMV).
+Repositório: [Ernands/Bobinas_RMV](https://github.com/Ernands/Bobinas_RMV).
 
 ## O que a aplicação faz
 
-- Lê planilhas localmente, sem backend, banco de dados ou API externa.
+- Lê bases do Google Sheets publicado por aba, sem backend e sem banco de dados.
+- Mantém importação manual CSV/XLSX com identificação automática da base.
 - Identifica colunas com variações de nome, acentos, espaços e maiúsculas/minúsculas.
-- Calcula demanda mensal por abertura de chamado, saídas, atrasos, caixas, custos e pedidos acima de 50 unidades.
+- Calcula demanda mensal de bobinas, saídas, atrasos, caixas, custos, cobertura e previsões de compra.
+- Analisa Envios Correios por ano, serviço, tipo de chamado, Coban, loja, unidade de postagem, custo e peso.
+- Consolida Bobinas e Correios no Resumo Executivo.
 - Mantém compras planejadas no `localStorage`.
 - Exporta relatórios em CSV e compras planejadas em JSON.
-- Gera cenários de previsão de pedido para bobinas 56 MM X 16 M e 56 MM X 30 M.
 
 ## Instalação
 
@@ -27,11 +29,26 @@ npm run dev
 
 Depois acesse a URL exibida pelo Vite.
 
-## Importar planilha
+## Google Sheets multi-abas
 
-Na tela inicial, clique em **Selecionar arquivo** e envie um CSV ou XLSX. A aplicação processa tudo no frontend e não envia dados para nenhum servidor.
+A fonte principal fica configurada em `src/config/datasets.js`.
 
-Colunas esperadas, com variações aceitas:
+Abas configuradas atualmente:
+
+- `Bobinas`, `gid 94895701`
+- `Envios Correios`, `gid 641203793`
+- `Futuro1`, `gid 1375191094`, desabilitada
+- `Futuro2`, `gid 1543667616`, desabilitada
+
+Para trocar nomes de abas ou `gid`s, edite `DATASET_CONFIGS`. As abas futuras podem continuar com `enabled: false` até existir uma tela ou regra de análise para elas.
+
+O link padrão publicado do Google Sheets fica em `src/utils/storage.js`, em `DEFAULT_DATA_SOURCE_URL`.
+
+## Importar planilha manual
+
+Na tela inicial, use **Arquivo** e envie um CSV ou XLSX. A aplicação tenta identificar se o arquivo é da base Bobinas ou Envios Correios pelas colunas. Se necessário, selecione manualmente o tipo no campo ao lado da URL.
+
+Colunas esperadas para Bobinas:
 
 - Tipo de chamado
 - Data de abertura
@@ -44,11 +61,27 @@ Colunas esperadas, com variações aceitas:
 - Rastreamento
 - Status
 
-Se alguma coluna importante não for identificada, a interface mostra um aviso.
+Colunas esperadas para Envios Correios:
+
+- Data da postagem
+- Rastreamento
+- Cod. Serviço
+- Serviço
+- Peso
+- Unidade da postagem
+- CEP
+- Valor unitário
+- Valor desconto
+- Valor serviço
+- Coban
+- Loja
+- Chamado
+
+Se alguma coluna importante não for identificada, a interface mostra um aviso por base.
 
 ## Compras planejadas
 
-As compras ficam salvas no `localStorage` do navegador. A primeira execução cria os pedidos padrão de janeiro a junho para os tipos:
+As compras ficam salvas no `localStorage` do navegador. A primeira execução cria pedidos padrão para os tipos:
 
 - 56 MM X 16 M
 - 56 MM X 30 M
@@ -73,4 +106,4 @@ npm run deploy
 
 ## Privacidade dos dados
 
-A aplicação não usa banco de dados, backend ou API externa. A planilha importada fica apenas em memória durante a sessão. As compras planejadas ficam no armazenamento local do navegador e podem ser exportadas em JSON.
+A aplicação não usa banco de dados nem backend. Os dados do Google Sheets são lidos direto pelo navegador a partir da publicação CSV das abas. Arquivos importados manualmente ficam apenas em memória durante a sessão. As compras planejadas e a URL da fonte ficam no armazenamento local do navegador.

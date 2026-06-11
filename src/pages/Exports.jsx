@@ -2,8 +2,8 @@ import { Download, Printer } from 'lucide-react';
 import { downloadCsv } from '../utils/csvExport';
 import { formatDateBR } from '../utils/dateUtils';
 
-export default function Exports({ analytics }) {
-  const actions = [
+export default function Exports({ analytics, correiosAnalytics }) {
+  const bobinasActions = [
     {
       label: 'Relatório mensal em CSV',
       filename: 'relatorio-mensal-demanda.csv',
@@ -71,6 +71,107 @@ export default function Exports({ analytics }) {
       ],
     },
   ];
+  const correiosActions = correiosAnalytics ? [
+    {
+      label: 'Resumo anual Correios em CSV',
+      filename: 'correios-resumo-anual.csv',
+      rows: [{
+        year: correiosAnalytics.selectedYear,
+        shipments: correiosAnalytics.summary.shipments,
+        totalCost: correiosAnalytics.summary.totalCost,
+        averageCost: correiosAnalytics.summary.averageCost,
+        totalWeight: correiosAnalytics.summary.totalWeight,
+        pac: correiosAnalytics.summary.pac,
+        sedex: correiosAnalytics.summary.sedex,
+        reversos: correiosAnalytics.summary.reversos,
+        peakMonth: correiosAnalytics.summary.peakMonth.month,
+      }],
+      columns: [
+        { label: 'Ano', key: 'year' },
+        { label: 'Envios', key: 'shipments' },
+        { label: 'Valor total', key: 'totalCost' },
+        { label: 'Custo médio', key: 'averageCost' },
+        { label: 'Peso total', key: 'totalWeight' },
+        { label: 'PAC', key: 'pac' },
+        { label: 'SEDEX', key: 'sedex' },
+        { label: 'Reversos', key: 'reversos' },
+        { label: 'Mês maior gasto', key: 'peakMonth' },
+      ],
+    },
+    {
+      label: 'Custos por tipo de chamado em CSV',
+      filename: 'correios-custos-tipo-chamado.csv',
+      rows: correiosAnalytics.callTypes,
+      columns: [
+        { label: 'Tipo de chamado', key: 'callType' },
+        { label: 'Envios', key: 'shipments' },
+        { label: 'Valor total', key: 'totalCost' },
+        { label: 'Custo médio', key: 'averageCost' },
+        { label: 'Peso total', key: 'totalWeight' },
+        { label: 'PAC', key: 'pac' },
+        { label: 'SEDEX', key: 'sedex' },
+        { label: 'Reversos', key: 'reversos' },
+        { label: '% custo anual', key: 'percentageCost' },
+        { label: 'Mês pico', key: 'peakMonth' },
+      ],
+    },
+    {
+      label: 'Matriz mensal por tipo em CSV',
+      filename: 'correios-matriz-tipo-chamado.csv',
+      rows: correiosAnalytics.matrixRows,
+      columns: [
+        { label: 'Tipo de chamado', key: 'callType' },
+        ...correiosAnalytics.monthly.map((month) => ({
+          label: month.month,
+          value: (row) => row.monthValues[month.monthKey],
+        })),
+        { label: 'Total', key: 'totalCost' },
+      ],
+    },
+    {
+      label: 'Ranking Cobans em CSV',
+      filename: 'correios-ranking-cobans.csv',
+      rows: correiosAnalytics.rankings.cobans,
+      columns: [
+        { label: 'Coban', key: 'name' },
+        { label: 'Envios', key: 'shipments' },
+        { label: 'Valor total', key: 'totalCost' },
+        { label: 'Custo médio', key: 'averageCost' },
+      ],
+    },
+    {
+      label: 'Ranking Lojas em CSV',
+      filename: 'correios-ranking-lojas.csv',
+      rows: correiosAnalytics.rankings.lojas,
+      columns: [
+        { label: 'Loja', key: 'name' },
+        { label: 'Envios', key: 'shipments' },
+        { label: 'Valor total', key: 'totalCost' },
+        { label: 'Custo médio', key: 'averageCost' },
+      ],
+    },
+    {
+      label: 'Tabela detalhada Correios em CSV',
+      filename: 'correios-envios-detalhados.csv',
+      rows: correiosAnalytics.filteredRecords,
+      columns: [
+        { label: 'Data da postagem', value: (row) => formatDateBR(row.postingDate) },
+        { label: 'Rastreamento', key: 'tracking' },
+        { label: 'Serviço dos Correios', key: 'service' },
+        { label: 'Tipo de chamado', key: 'callType' },
+        { label: 'Número do chamado', key: 'callNumber' },
+        { label: 'Peso', key: 'weightKg' },
+        { label: 'Unidade da postagem', key: 'postingUnit' },
+        { label: 'CEP', key: 'cep' },
+        { label: 'Valor unitário', key: 'unitValue' },
+        { label: 'Valor desconto', key: 'discountValue' },
+        { label: 'Valor serviço', key: 'serviceValue' },
+        { label: 'Coban', key: 'coban' },
+        { label: 'Loja', key: 'loja' },
+      ],
+    },
+  ] : [];
+  const actions = [...bobinasActions, ...correiosActions];
 
   return (
     <div className="page-grid">

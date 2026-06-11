@@ -20,7 +20,7 @@ import { formatCurrency, formatInteger } from '../utils/calculations';
 function DashboardEmptyState() {
   return (
     <article className="empty-state">
-      <h2>Importe uma planilha CSV/XLSX para iniciar</h2>
+      <h2>Carregue o Google Sheets ou importe uma planilha para iniciar</h2>
       <p>Os cards, gráficos e tabelas serão preenchidos apenas com dados carregados no navegador.</p>
     </article>
   );

@@ -12,7 +12,7 @@ function getSortValue(column, row) {
 }
 
 export default function DataTable({ columns, rows, emptyMessage = 'Nenhum dado para exibir.', defaultSort }) {
-  const [sort, setSort] = useState(defaultSort || { key: columns[0]?.key, direction: 'asc' });
+  const [sort, setSort] = useState(defaultSort || null);
 
   const sortedRows = useMemo(() => {
     if (!sort?.key) {
