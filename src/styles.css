@@ -126,8 +126,12 @@ button:disabled {
 }
 
 .sidebar-group-items {
-  display: grid;
+  display: none;
   gap: 4px;
+}
+
+.sidebar-group-items.open {
+  display: grid;
 }
 
 .sidebar-group-items button {

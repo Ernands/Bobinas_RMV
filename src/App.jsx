@@ -204,22 +204,14 @@ function normalizeDatasetRows(datasetId, rows) {
 
 function Sidebar({ activeTab, onChange }) {
   const activeGroupId = getActiveGroupId(activeTab);
-  const [openGroups, setOpenGroups] = useState(() => [activeGroupId]);
+  const [openGroupId, setOpenGroupId] = useState(activeGroupId);
 
   useEffect(() => {
-    setOpenGroups([activeGroupId]);
+    setOpenGroupId(activeGroupId);
   }, [activeGroupId]);
 
   function toggleGroup(groupId) {
-    setOpenGroups((current) => {
-      if (groupId === activeGroupId) {
-        return [activeGroupId];
-      }
-
-      return current.includes(groupId)
-        ? current.filter((id) => id !== groupId)
-        : [activeGroupId, groupId];
-    });
+    setOpenGroupId((current) => (current === groupId ? '' : groupId));
   }
 
   return (
@@ -236,7 +228,7 @@ function Sidebar({ activeTab, onChange }) {
 
       <nav className="sidebar-nav" aria-label="Menu principal">
         {MENU_GROUPS.map((group) => {
-          const isOpen = openGroups.includes(group.id);
+          const isOpen = openGroupId === group.id;
           const panelId = `sidebar-group-${group.id}`;
 
           return (
@@ -252,7 +244,11 @@ function Sidebar({ activeTab, onChange }) {
                 <ChevronDown size={16} aria-hidden="true" />
               </button>
 
-              <div className="sidebar-group-items" hidden={!isOpen} id={panelId}>
+              <div
+                aria-hidden={!isOpen}
+                className={`sidebar-group-items${isOpen ? ' open' : ''}`}
+                id={panelId}
+              >
                 {group.items.map((item) => (
                   <button
                     className={activeTab === item.id ? 'active' : ''}
