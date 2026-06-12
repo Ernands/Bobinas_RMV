@@ -4,6 +4,7 @@ import {
   BarChart3,
   Boxes,
   CalendarClock,
+  ChevronDown,
   ClipboardList,
   FileDown,
   Gauge,
@@ -63,6 +64,7 @@ const EMPTY_FILTERS = {
 
 const MENU_GROUPS = [
   {
+    id: 'dashboard',
     label: 'Dashboard',
     items: [
       { id: 'overview', label: 'Visão Geral', icon: LayoutDashboard },
@@ -70,6 +72,7 @@ const MENU_GROUPS = [
     ],
   },
   {
+    id: 'bobinas',
     label: 'Bobinas',
     items: [
       { id: 'monthly', label: 'Demanda Mensal', icon: BarChart3 },
@@ -82,17 +85,30 @@ const MENU_GROUPS = [
     ],
   },
   {
+    id: 'correios',
     label: 'Correios',
     items: [
       { id: 'correios', label: 'Envios Correios', icon: Mail },
+      { id: 'correios-costs', label: 'Custos por Serviço', icon: BarChart3, disabled: true },
+      { id: 'correios-uf', label: 'Distribuição por UF', icon: MapPinned, disabled: true },
+      { id: 'correios-reverse', label: 'Reversos', icon: PackageOpen, disabled: true },
     ],
   },
   {
+    id: 'gestao',
     label: 'Gestão',
     items: [
       { id: 'forecast', label: 'Previsão de Compra', icon: TrendingUp },
       { id: 'critical', label: 'Pontos Críticos', icon: AlertTriangle },
       { id: 'exports', label: 'Exportações', icon: FileDown },
+    ],
+  },
+  {
+    id: 'futuros',
+    label: 'Futuros',
+    items: [
+      { id: 'future-1', label: 'xxxxxxx', icon: ClipboardList, disabled: true },
+      { id: 'future-2', label: 'xxxxxxx', icon: ClipboardList, disabled: true },
     ],
   },
 ];
@@ -113,6 +129,10 @@ function getMenuItems() {
 
 function getActiveLabel(activeTab) {
   return getMenuItems().find((item) => item.id === activeTab)?.label;
+}
+
+function getActiveGroupId(activeTab) {
+  return MENU_GROUPS.find((group) => group.items.some((item) => item.id === activeTab))?.id || MENU_GROUPS[0].id;
 }
 
 function uniqueOptions(records, field) {
@@ -183,6 +203,25 @@ function normalizeDatasetRows(datasetId, rows) {
 }
 
 function Sidebar({ activeTab, onChange }) {
+  const activeGroupId = getActiveGroupId(activeTab);
+  const [openGroups, setOpenGroups] = useState(() => [activeGroupId]);
+
+  useEffect(() => {
+    setOpenGroups([activeGroupId]);
+  }, [activeGroupId]);
+
+  function toggleGroup(groupId) {
+    setOpenGroups((current) => {
+      if (groupId === activeGroupId) {
+        return [activeGroupId];
+      }
+
+      return current.includes(groupId)
+        ? current.filter((id) => id !== groupId)
+        : [activeGroupId, groupId];
+    });
+  }
+
   return (
     <aside className="sidebar">
       <div className="brand">
@@ -196,22 +235,41 @@ function Sidebar({ activeTab, onChange }) {
       </div>
 
       <nav className="sidebar-nav" aria-label="Menu principal">
-        {MENU_GROUPS.map((group) => (
-          <div className="sidebar-group" key={group.label}>
-            <span>{group.label}</span>
-            {group.items.map((item) => (
+        {MENU_GROUPS.map((group) => {
+          const isOpen = openGroups.includes(group.id);
+          const panelId = `sidebar-group-${group.id}`;
+
+          return (
+            <div className="sidebar-group" key={group.id}>
               <button
-                className={activeTab === item.id ? 'active' : ''}
-                key={item.id}
+                aria-controls={panelId}
+                aria-expanded={isOpen}
+                className={`sidebar-group-trigger${isOpen ? ' open' : ''}`}
                 type="button"
-                onClick={() => onChange(item.id)}
+                onClick={() => toggleGroup(group.id)}
               >
-                <item.icon size={18} aria-hidden="true" />
-                {item.label}
+                <span>{group.label}</span>
+                <ChevronDown size={16} aria-hidden="true" />
               </button>
-            ))}
-          </div>
-        ))}
+
+              <div className="sidebar-group-items" hidden={!isOpen} id={panelId}>
+                {group.items.map((item) => (
+                  <button
+                    className={activeTab === item.id ? 'active' : ''}
+                    disabled={item.disabled}
+                    key={item.id}
+                    title={item.disabled ? 'Em preparação' : undefined}
+                    type="button"
+                    onClick={() => onChange(item.id)}
+                  >
+                    <item.icon size={18} aria-hidden="true" />
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          );
+        })}
       </nav>
 
       <div className="sidebar-footer">
