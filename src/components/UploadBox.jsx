@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { FileSpreadsheet, Link2, RefreshCw, UploadCloud } from 'lucide-react';
+import { FileSpreadsheet, Link2, RefreshCw, UploadCloud, X } from 'lucide-react';
 import { detectDatasetType } from '../utils/datasetDetection';
 import { loadRemoteDatasets, parseLocalFile } from '../utils/importSources';
 
@@ -40,15 +40,23 @@ export default function UploadBox({
   dataSourceUrl,
   datasetConfigs,
   datasetStatuses,
+  isOpen,
   lastSourceLabel,
+  onClose,
   onDatasetsLoaded,
   onDatasetLoading,
+  onSourceErrorChange,
   onSourceUrlChange,
 }) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [manualDatasetId, setManualDatasetId] = useState('');
   const autoLoadRef = useRef(false);
+
+  function updateError(message) {
+    setError(message);
+    onSourceErrorChange?.(message);
+  }
 
   useEffect(() => {
     if (!dataSourceUrl || autoLoadRef.current) {
@@ -59,12 +67,27 @@ export default function UploadBox({
     handleRemoteSource(dataSourceUrl, true);
   }, [dataSourceUrl]);
 
+  useEffect(() => {
+    if (!isOpen) {
+      return undefined;
+    }
+
+    function handleKeyDown(event) {
+      if (event.key === 'Escape') {
+        onClose?.();
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
   async function handleFile(file) {
     if (!file) {
       return;
     }
 
-    setError('');
+    updateError('');
     setIsLoading(true);
     try {
       const rows = await parseLocalFile(file);
@@ -77,7 +100,7 @@ export default function UploadBox({
       onDatasetLoading([detectedType]);
       onDatasetsLoaded([{ id: detectedType, rows }], file.name);
     } catch (uploadError) {
-      setError(uploadError.message || 'Erro ao importar a planilha.');
+      updateError(uploadError.message || 'Erro ao importar a planilha.');
     } finally {
       setIsLoading(false);
     }
@@ -89,7 +112,7 @@ export default function UploadBox({
     }
 
     const enabledDatasets = datasetConfigs.filter((dataset) => dataset.enabled);
-    setError('');
+    updateError('');
     setIsLoading(true);
     onDatasetLoading(enabledDatasets.map((dataset) => dataset.id));
 
@@ -97,21 +120,44 @@ export default function UploadBox({
       const results = await loadRemoteDatasets(url, enabledDatasets);
       onDatasetsLoaded(results, isAutomatic ? 'Google Sheets automático' : 'Google Sheets atualizado');
     } catch (remoteError) {
-      setError(remoteError.message || 'Erro ao carregar a planilha online.');
+      updateError(remoteError.message || 'Erro ao carregar a planilha online.');
     } finally {
       setIsLoading(false);
     }
   }
 
+  if (!isOpen) {
+    return null;
+  }
+
   return (
-    <section className="upload-panel">
-      <div className="upload-copy">
-        <FileSpreadsheet size={30} aria-hidden="true" />
-        <div>
-          <h2>Fonte de dados</h2>
-          <p>Carregue abas do Google Sheets ou envie um CSV/XLSX manualmente.</p>
+    <div
+      className="modal-backdrop"
+      role="presentation"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) {
+          onClose?.();
+        }
+      }}
+    >
+      <section
+        aria-labelledby="data-source-title"
+        aria-modal="true"
+        className="data-source-modal"
+        role="dialog"
+      >
+        <div className="data-source-modal-heading">
+          <div className="upload-copy">
+            <FileSpreadsheet size={30} aria-hidden="true" />
+            <div>
+              <h2 id="data-source-title">Fonte de dados</h2>
+              <p>Carregue abas do Google Sheets ou envie um CSV/XLSX manualmente.</p>
+            </div>
+          </div>
+          <button className="icon-button" type="button" title="Fechar" onClick={onClose}>
+            <X size={18} aria-hidden="true" />
+          </button>
         </div>
-      </div>
 
       <div className="source-controls">
         <label className="source-url">
@@ -176,7 +222,8 @@ export default function UploadBox({
         </div>
       ) : null}
 
-      {error ? <div className="upload-status danger">{error}</div> : null}
-    </section>
+        {error ? <div className="upload-status danger">{error}</div> : null}
+      </section>
+    </div>
   );
 }

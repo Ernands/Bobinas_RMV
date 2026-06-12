@@ -1,13 +1,24 @@
 import { Bell, DatabaseZap, Printer } from 'lucide-react';
 
-export default function Header({ activeLabel, onPrint }) {
+export default function Header({ dataSourceStatus, onDataSourceClick, onPrint, pageMeta }) {
+  const sourceTone = dataSourceStatus?.tone || 'idle';
+
   return (
     <header className="topbar">
       <div>
-        <h1>Dashboard de Bobinas</h1>
-        <p>{activeLabel || 'Visão Geral'}</p>
+        <h1>{pageMeta?.title || 'Painel Operacional RMV'}</h1>
+        <p>{pageMeta?.subtitle || 'Visão geral da operação'}</p>
       </div>
       <div className="header-actions">
+        <button
+          className={`button data-source-button ${sourceTone}`}
+          title={dataSourceStatus?.title || 'Abrir fonte de dados'}
+          type="button"
+          onClick={onDataSourceClick}
+        >
+          <DatabaseZap size={18} aria-hidden="true" />
+          Fonte de dados
+        </button>
         <span className="local-badge">
           <DatabaseZap size={18} aria-hidden="true" />
           Sem backend

@@ -8,6 +8,7 @@ export const EMPTY_CORREIOS_FILTERS = {
   coban: '',
   loja: '',
   postingUnit: '',
+  uf: '',
   serviceMode: 'all',
   minValue: '',
   maxValue: '',
@@ -111,6 +112,7 @@ export function buildCorreiosOptions(records, selectedYear) {
     cobans: uniqueOptions(yearRecords, 'coban'),
     lojas: uniqueOptions(yearRecords, 'loja'),
     postingUnits: uniqueOptions(yearRecords, 'postingUnit'),
+    ufs: uniqueOptions(yearRecords, 'uf'),
   };
 }
 
@@ -137,6 +139,9 @@ export function applyCorreiosFilters(records, filters) {
       return false;
     }
     if (filters.postingUnit && record.postingUnit !== filters.postingUnit) {
+      return false;
+    }
+    if (filters.uf && record.uf !== filters.uf) {
       return false;
     }
     if (filters.serviceMode === 'pac' && !record.isPac) {
@@ -169,6 +174,7 @@ export function applyCorreiosFilters(records, filters) {
         record.coban,
         record.loja,
         record.postingUnit,
+        record.uf,
         record.cep,
       ].join(' ').toLowerCase();
 
@@ -304,6 +310,7 @@ function buildCrossRows(callTypes) {
 
 function buildEntityRanking(records, field, limit = 12) {
   const map = new Map();
+  const totalCost = records.reduce((sum, record) => sum + safeNumber(record.serviceValue), 0);
 
   records.forEach((record) => {
     const name = record[field] || 'Não informado';
@@ -328,6 +335,7 @@ function buildEntityRanking(records, field, limit = 12) {
     .map((row) => ({
       ...row,
       averageCost: row.shipments ? row.totalCost / row.shipments : 0,
+      percentageCost: totalCost ? (row.totalCost / totalCost) * 100 : 0,
       sedexPercent: row.shipments ? (row.sedex / row.shipments) * 100 : 0,
       reversePercent: row.shipments ? (row.reversos / row.shipments) * 100 : 0,
     }))
@@ -339,12 +347,14 @@ function buildServiceRanking(records) {
   return buildEntityRanking(records, 'service', 12);
 }
 
-function buildAlerts(records, summary, monthly, callTypes, services, unitRanking) {
+function buildAlerts(records, summary, monthly, callTypes, services, unitRanking, ufRanking) {
   const alerts = [];
   const peakMonth = findPeakMonth(monthly);
   const topCallType = callTypes[0];
   const topUnit = unitRanking[0];
+  const topUf = ufRanking.find((row) => row.name !== 'UF não identificada');
   const missingCalled = records.filter((record) => record.callType === 'Não informado').length;
+  const missingUf = records.filter((record) => record.uf === 'UF não identificada').length;
   const missingCobanOrStore = records.filter((record) => (
     record.coban === 'Não informado' || record.loja === 'Não informado'
   )).length;
@@ -407,6 +417,14 @@ function buildAlerts(records, summary, monthly, callTypes, services, unitRanking
     });
   }
 
+  if (missingUf) {
+    alerts.push({
+      type: 'danger',
+      title: 'Registros sem UF',
+      message: `${missingUf} envio(s) sem UF identificada pela coluna ou pelo CEP.`,
+    });
+  }
+
   if (missingCobanOrStore) {
     alerts.push({
       type: 'warning',
@@ -420,6 +438,14 @@ function buildAlerts(records, summary, monthly, callTypes, services, unitRanking
       type: 'info',
       title: 'Unidade com maior custo',
       message: `${topUnit.name} lidera o custo por unidade de postagem.`,
+    });
+  }
+
+  if (topUf) {
+    alerts.push({
+      type: 'info',
+      title: 'UF com maior custo',
+      message: `${topUf.name} lidera o custo por UF no recorte.`,
     });
   }
 
@@ -451,6 +477,9 @@ export function buildCorreiosAnalytics(records, filters = EMPTY_CORREIOS_FILTERS
   const cobans = buildEntityRanking(filteredRecords, 'coban');
   const lojas = buildEntityRanking(filteredRecords, 'loja');
   const postingUnits = buildEntityRanking(filteredRecords, 'postingUnit');
+  const ufs = buildEntityRanking(filteredRecords, 'uf', 30);
+  const topCallType = callTypes[0] || null;
+  const topUf = ufs.find((row) => row.name !== 'UF não identificada') || ufs[0] || null;
 
   return {
     records,
@@ -462,6 +491,8 @@ export function buildCorreiosAnalytics(records, filters = EMPTY_CORREIOS_FILTERS
     summary: {
       ...summary,
       peakMonth: findPeakMonth(monthly),
+      topCallType,
+      topUf,
     },
     monthly,
     callTypes,
@@ -474,7 +505,8 @@ export function buildCorreiosAnalytics(records, filters = EMPTY_CORREIOS_FILTERS
       cobans,
       lojas,
       postingUnits,
+      ufs,
     },
-    alerts: buildAlerts(filteredRecords, summary, monthly, callTypes, services, postingUnits),
+    alerts: buildAlerts(filteredRecords, summary, monthly, callTypes, services, postingUnits, ufs),
   };
 }

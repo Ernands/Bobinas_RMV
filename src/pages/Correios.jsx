@@ -13,6 +13,7 @@ import {
   Boxes,
   DollarSign,
   Download,
+  MapPinned,
   PackageCheck,
   RotateCcw,
   Scale,
@@ -20,6 +21,7 @@ import {
   Truck,
 } from 'lucide-react';
 import AlertBox from '../components/AlertBox';
+import BrazilUfMap from '../components/BrazilUfMap';
 import ChartCard from '../components/ChartCard';
 import DataTable from '../components/DataTable';
 import MetricCard from '../components/MetricCard';
@@ -153,6 +155,12 @@ function CorreiosFilters({ analytics, filters, onFiltersChange }) {
             value={filters.postingUnit}
             onChange={(value) => setFilter(filters, onFiltersChange, 'postingUnit', value)}
           />
+          <SelectFilter
+            label="UF"
+            options={options.ufs}
+            value={filters.uf}
+            onChange={(value) => setFilter(filters, onFiltersChange, 'uf', value)}
+          />
           <label className="field">
             <span>Tipo de serviço</span>
             <select
@@ -231,6 +239,7 @@ function rankingColumns(nameLabel = 'Nome') {
     { key: 'shipments', label: 'Envios', value: (row) => formatInteger(row.shipments), sortValue: (row) => row.shipments },
     { key: 'totalCost', label: 'Valor total', value: (row) => formatCurrency(row.totalCost), sortValue: (row) => row.totalCost },
     { key: 'averageCost', label: 'Custo médio', value: (row) => formatCurrency(row.averageCost), sortValue: (row) => row.averageCost },
+    { key: 'percentageCost', label: '% do total', value: (row) => formatPercent(row.percentageCost || 0), sortValue: (row) => row.percentageCost || 0 },
   ];
 }
 
@@ -246,6 +255,9 @@ function detailedColumns() {
     ) },
     { key: 'callNumber', label: 'Número do chamado', value: (row) => row.callNumber || '-' },
     { key: 'weightKg', label: 'Peso', value: (row) => formatWeight(row.weightKg), sortValue: (row) => row.weightKg },
+    { key: 'uf', label: 'UF', render: (row) => (
+      <span className={row.uf === 'UF não identificada' ? 'uf-pill invalid' : 'uf-pill'}>{row.uf}</span>
+    ) },
     { key: 'postingUnit', label: 'Unidade da postagem' },
     { key: 'cep', label: 'CEP' },
     { key: 'unitValue', label: 'Valor unitário', value: (row) => formatCurrency(row.unitValue), sortValue: (row) => row.unitValue },
@@ -264,6 +276,7 @@ function exportFilteredRecords(rows) {
     { label: 'Tipo de chamado', key: 'callType' },
     { label: 'Número do chamado', key: 'callNumber' },
     { label: 'Peso', key: 'weightKg' },
+    { label: 'UF', key: 'uf' },
     { label: 'Unidade da postagem', key: 'postingUnit' },
     { label: 'CEP', key: 'cep' },
     { label: 'Valor unitário', key: 'unitValue' },
@@ -381,6 +394,9 @@ function Drilldown({ row }) {
         <ChartCard title="Top Unidades" subtitle="Maiores custos no tipo">
           <DataTable columns={rankingColumns('Unidade')} rows={buildTop('postingUnit')} />
         </ChartCard>
+        <ChartCard title="Top UFs" subtitle="Maiores custos no tipo">
+          <DataTable columns={rankingColumns('UF')} rows={buildTop('uf')} />
+        </ChartCard>
       </section>
 
       <ChartCard title="Tabela detalhada do tipo" subtitle="Somente o tipo de chamado expandido">
@@ -392,8 +408,18 @@ function Drilldown({ row }) {
 
 export default function Correios({ analytics, filters, hasData, onFiltersChange }) {
   const [matrixMode, setMatrixMode] = useState('value');
+  const [matrixSearch, setMatrixSearch] = useState('');
+  const [crossMode, setCrossMode] = useState('count');
+  const [ufMetric, setUfMetric] = useState('totalCost');
   const [expandedCallType, setExpandedCallType] = useState('');
   const expandedRow = analytics.callTypes.find((row) => row.callType === expandedCallType);
+  const filteredMatrixRows = useMemo(() => {
+    const query = matrixSearch.trim().toLowerCase();
+    if (!query) {
+      return analytics.matrixRows;
+    }
+    return analytics.matrixRows.filter((row) => row.callType.toLowerCase().includes(query));
+  }, [analytics.matrixRows, matrixSearch]);
   const matrixColumns = useMemo(() => [
     { key: 'callType', label: 'Tipo de chamado' },
     ...analytics.monthly.map((month) => ({
@@ -417,6 +443,33 @@ export default function Correios({ analytics, filters, hasData, onFiltersChange 
       sortValue: (row) => (matrixMode === 'value' ? row.totalCost : row.totalShipments),
     },
   ], [analytics.monthly, matrixMode]);
+  const crossColumns = useMemo(() => [
+    { key: 'callType', label: 'Tipo de chamado' },
+    {
+      key: 'pac',
+      label: 'PAC',
+      value: (row) => (crossMode === 'value' ? formatCurrency(row.pacValue) : formatInteger(row.pac)),
+      sortValue: (row) => (crossMode === 'value' ? row.pacValue : row.pac),
+    },
+    {
+      key: 'sedex',
+      label: 'SEDEX',
+      value: (row) => (crossMode === 'value' ? formatCurrency(row.sedexValue) : formatInteger(row.sedex)),
+      sortValue: (row) => (crossMode === 'value' ? row.sedexValue : row.sedex),
+    },
+    {
+      key: 'reversos',
+      label: 'Reversos',
+      value: (row) => (crossMode === 'value' ? formatCurrency(row.reversosValue) : formatInteger(row.reversos)),
+      sortValue: (row) => (crossMode === 'value' ? row.reversosValue : row.reversos),
+    },
+    {
+      key: 'total',
+      label: 'Total',
+      value: (row) => (crossMode === 'value' ? formatCurrency(row.totalValue) : formatInteger(row.total)),
+      sortValue: (row) => (crossMode === 'value' ? row.totalValue : row.total),
+    },
+  ], [crossMode]);
 
   if (!hasData) {
     return (
@@ -479,11 +532,52 @@ export default function Correios({ analytics, filters, hasData, onFiltersChange 
           value={analytics.summary.peakMonth.month}
           subtitle={formatCurrency(analytics.summary.peakMonth.totalCost)}
         />
+        <MetricCard
+          icon={PackageCheck}
+          title="Tipo mais caro"
+          value={analytics.summary.topCallType?.callType || 'Sem dados'}
+          subtitle={analytics.summary.topCallType ? formatCurrency(analytics.summary.topCallType.totalCost) : ''}
+          tone="warning"
+        />
+        <MetricCard
+          icon={MapPinned}
+          title="UF com maior custo"
+          value={analytics.summary.topUf?.name || 'Sem dados'}
+          subtitle={analytics.summary.topUf ? formatCurrency(analytics.summary.topUf.totalCost) : ''}
+          tone="primary"
+        />
       </section>
 
+      <section className="section-heading">
+        <div>
+          <p className="eyebrow">Alertas dos Correios</p>
+          <h2>Alertas inteligentes</h2>
+          <p>Prioridades e pontos de atenção calculados sobre o recorte filtrado.</p>
+        </div>
+      </section>
       <AlertBox alerts={analytics.alerts} />
 
-      <section className="charts-grid two">
+      <section className="section-heading">
+        <div>
+          <p className="eyebrow">Evolução anual dos envios</p>
+          <h2>Visão mensal do ano selecionado</h2>
+          <p>Todos os meses aparecem, mesmo quando não há envios no período.</p>
+        </div>
+      </section>
+
+      <section className="cards-grid three">
+        <ChartCard title="Envios por mês" subtitle="Quantidade mensal de postagens">
+          <ResponsiveContainer height={310} width="100%">
+            <BarChart data={analytics.monthly}>
+              <CartesianGrid stroke="#E5E7EB" strokeDasharray="4 4" />
+              <XAxis dataKey="shortMonth" />
+              <YAxis />
+              <Tooltip formatter={(value) => formatInteger(value)} />
+              <Bar dataKey="shipments" fill="#2563EB" name="Envios" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </ChartCard>
+
         <ChartCard title="Valor gasto por mês" subtitle="Todos os 12 meses do ano selecionado">
           <ResponsiveContainer height={310} width="100%">
             <BarChart data={analytics.monthly}>
@@ -564,23 +658,53 @@ export default function Correios({ analytics, filters, hasData, onFiltersChange 
           >
             Quantidade
           </button>
+          <label className="search-input matrix-search">
+            <Search size={16} aria-hidden="true" />
+            <input
+              placeholder="Buscar tipo de chamado"
+              value={matrixSearch}
+              onChange={(event) => setMatrixSearch(event.target.value)}
+            />
+          </label>
         </div>
-        <DataTable columns={matrixColumns} rows={analytics.matrixRows} />
+        <DataTable columns={matrixColumns} rows={filteredMatrixRows} />
       </ChartCard>
 
       <ChartCard title="Tipo de chamado x Serviço dos Correios" subtitle="Composição por PAC, SEDEX e Reversos">
-        <DataTable
-          columns={[
-            { key: 'callType', label: 'Tipo de chamado' },
-            { key: 'pac', label: 'PAC', value: (row) => formatInteger(row.pac), sortValue: (row) => row.pac },
-            { key: 'sedex', label: 'SEDEX', value: (row) => formatInteger(row.sedex), sortValue: (row) => row.sedex },
-            { key: 'reversos', label: 'Reversos', value: (row) => formatInteger(row.reversos), sortValue: (row) => row.reversos },
-            { key: 'total', label: 'Total', value: (row) => formatInteger(row.total), sortValue: (row) => row.total },
-            { key: 'totalValue', label: 'Valor total', value: (row) => formatCurrency(row.totalValue), sortValue: (row) => row.totalValue },
-          ]}
-          rows={analytics.crossRows}
-        />
+        <div className="matrix-toolbar">
+          <button
+            className={`button ${crossMode === 'count' ? 'primary' : 'secondary'}`}
+            type="button"
+            onClick={() => setCrossMode('count')}
+          >
+            Quantidade
+          </button>
+          <button
+            className={`button ${crossMode === 'value' ? 'primary' : 'secondary'}`}
+            type="button"
+            onClick={() => setCrossMode('value')}
+          >
+            Valor gasto
+          </button>
+        </div>
+        <DataTable columns={crossColumns} rows={analytics.crossRows} />
       </ChartCard>
+
+      <BrazilUfMap
+        metric={ufMetric}
+        rows={analytics.rankings.ufs}
+        selectedUf={filters.uf}
+        onMetricChange={setUfMetric}
+        onUfClick={(uf) => setFilter(filters, onFiltersChange, 'uf', uf)}
+      />
+
+      <section className="section-heading">
+        <div>
+          <p className="eyebrow">Rankings do período</p>
+          <h2>Maiores impactos do recorte filtrado</h2>
+          <p>Coban, loja, unidade de postagem, tipo de chamado e UF.</p>
+        </div>
+      </section>
 
       <section className="cards-grid three">
         <ChartCard title="Top Cobans por custo" subtitle="Coban, envios, valor e custo médio">
@@ -597,6 +721,15 @@ export default function Correios({ analytics, filters, hasData, onFiltersChange 
               { key: 'reversePercent', label: '% Reverso', value: (row) => formatPercent(row.reversePercent), sortValue: (row) => row.reversePercent },
             ]}
             rows={analytics.rankings.postingUnits}
+          />
+        </ChartCard>
+        <ChartCard title="Top UFs por custo" subtitle="UF, envios, valor e participação">
+          <DataTable columns={rankingColumns('UF')} rows={analytics.rankings.ufs} />
+        </ChartCard>
+        <ChartCard title="Top UFs por quantidade" subtitle="Ordenado por volume de envios">
+          <DataTable
+            columns={rankingColumns('UF')}
+            rows={[...analytics.rankings.ufs].sort((a, b) => b.shipments - a.shipments || b.totalCost - a.totalCost)}
           />
         </ChartCard>
       </section>

@@ -1,21 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import {
-  AlertTriangle,
-  BarChart3,
-  Boxes,
-  CalendarClock,
-  ChevronDown,
-  ClipboardList,
-  FileDown,
-  Gauge,
-  LayoutDashboard,
-  Mail,
-  MapPinned,
-  PackageOpen,
-  ReceiptText,
-  ShieldCheck,
-  TrendingUp,
-} from 'lucide-react';
+import { Boxes, ChevronDown } from 'lucide-react';
 import Header from './components/Header';
 import UploadBox from './components/UploadBox';
 import Filters from './components/Filters';
@@ -33,6 +17,7 @@ import ExecutiveSummary from './pages/ExecutiveSummary';
 import PurchaseForecast from './pages/PurchaseForecast';
 import CriticalPoints from './pages/CriticalPoints';
 import { DATASET_CONFIGS, getDatasetConfig } from './config/datasets';
+import { NAV_GROUPS, getActiveGroupId, getPageMeta } from './config/navigation';
 import { applyFilters, buildAnalytics } from './utils/calculations';
 import {
   buildCorreiosAnalytics,
@@ -62,57 +47,6 @@ const EMPTY_FILTERS = {
   onlyAbove50: false,
 };
 
-const MENU_GROUPS = [
-  {
-    id: 'dashboard',
-    label: 'Dashboard',
-    items: [
-      { id: 'overview', label: 'Visão Geral', icon: LayoutDashboard },
-      { id: 'executive', label: 'Resumo Executivo', icon: Gauge },
-    ],
-  },
-  {
-    id: 'bobinas',
-    label: 'Bobinas',
-    items: [
-      { id: 'monthly', label: 'Demanda Mensal', icon: BarChart3 },
-      { id: 'shipping', label: 'Saídas e Atrasos', icon: CalendarClock },
-      { id: 'bobbin16', label: '56 MM X 16 M', icon: ClipboardList },
-      { id: 'bobbin30', label: '56 MM X 30 M', icon: ReceiptText },
-      { id: 'purchases', label: 'Compras Planejadas', icon: PackageOpen },
-      { id: 'coverage', label: 'Cobertura', icon: ShieldCheck },
-      { id: 'destinations', label: 'Destinos', icon: MapPinned },
-    ],
-  },
-  {
-    id: 'correios',
-    label: 'Correios',
-    items: [
-      { id: 'correios', label: 'Envios Correios', icon: Mail },
-      { id: 'correios-costs', label: 'Custos por Serviço', icon: BarChart3, disabled: true },
-      { id: 'correios-uf', label: 'Distribuição por UF', icon: MapPinned, disabled: true },
-      { id: 'correios-reverse', label: 'Reversos', icon: PackageOpen, disabled: true },
-    ],
-  },
-  {
-    id: 'gestao',
-    label: 'Gestão',
-    items: [
-      { id: 'forecast', label: 'Previsão de Compra', icon: TrendingUp },
-      { id: 'critical', label: 'Pontos Críticos', icon: AlertTriangle },
-      { id: 'exports', label: 'Exportações', icon: FileDown },
-    ],
-  },
-  {
-    id: 'futuros',
-    label: 'Futuros',
-    items: [
-      { id: 'future-1', label: 'xxxxxxx', icon: ClipboardList, disabled: true },
-      { id: 'future-2', label: 'xxxxxxx', icon: ClipboardList, disabled: true },
-    ],
-  },
-];
-
 const BOBINAS_FILTER_TABS = new Set([
   'overview',
   'monthly',
@@ -122,18 +56,6 @@ const BOBINAS_FILTER_TABS = new Set([
   'coverage',
   'destinations',
 ]);
-
-function getMenuItems() {
-  return MENU_GROUPS.flatMap((group) => group.items);
-}
-
-function getActiveLabel(activeTab) {
-  return getMenuItems().find((item) => item.id === activeTab)?.label;
-}
-
-function getActiveGroupId(activeTab) {
-  return MENU_GROUPS.find((group) => group.items.some((item) => item.id === activeTab))?.id || MENU_GROUPS[0].id;
-}
 
 function uniqueOptions(records, field) {
   return Array.from(
@@ -180,6 +102,44 @@ function createInitialDatasets() {
   }, {});
 }
 
+function getDataSourceStatus(datasets, sourceError) {
+  const enabledStates = DATASET_CONFIGS
+    .filter((dataset) => dataset.enabled)
+    .map((dataset) => datasets[dataset.id])
+    .filter(Boolean);
+
+  const hasMissingColumns = enabledStates.some((state) => state.meta?.missingColumns?.length);
+  const hasError = Boolean(sourceError) || enabledStates.some((state) => state.status === 'error') || hasMissingColumns;
+  const isLoading = enabledStates.some((state) => state.status === 'loading');
+  const hasLoadedData = enabledStates.some((state) => state.status === 'loaded');
+
+  if (hasError) {
+    return {
+      tone: 'danger',
+      title: sourceError || 'Fonte de dados com erro ou coluna pendente',
+    };
+  }
+
+  if (isLoading) {
+    return {
+      tone: 'loading',
+      title: 'Carregando fonte de dados',
+    };
+  }
+
+  if (hasLoadedData) {
+    return {
+      tone: 'success',
+      title: 'Fonte de dados carregada sem erros',
+    };
+  }
+
+  return {
+    tone: 'idle',
+    title: 'Configurar fonte de dados',
+  };
+}
+
 function normalizeGenericRows(rows) {
   return {
     records: rows,
@@ -221,15 +181,16 @@ function Sidebar({ activeTab, onChange }) {
           <Boxes size={23} aria-hidden="true" />
         </div>
         <div>
-          <strong>Bobinas</strong>
-          <span>Local first</span>
+          <strong>RMV Operacional</strong>
+          <span>Painel local</span>
         </div>
       </div>
 
       <nav className="sidebar-nav" aria-label="Menu principal">
-        {MENU_GROUPS.map((group) => {
+        {NAV_GROUPS.map((group) => {
           const isOpen = openGroupId === group.id;
           const panelId = `sidebar-group-${group.id}`;
+          const GroupIcon = group.icon;
 
           return (
             <div className="sidebar-group" key={group.id}>
@@ -240,8 +201,11 @@ function Sidebar({ activeTab, onChange }) {
                 type="button"
                 onClick={() => toggleGroup(group.id)}
               >
-                <span>{group.label}</span>
-                <ChevronDown size={16} aria-hidden="true" />
+                <span className="sidebar-group-title">
+                  <GroupIcon size={15} aria-hidden="true" />
+                  {group.label}
+                </span>
+                <ChevronDown className="sidebar-group-chevron" size={16} aria-hidden="true" />
               </button>
 
               <div
@@ -254,6 +218,7 @@ function Sidebar({ activeTab, onChange }) {
                     className={activeTab === item.id ? 'active' : ''}
                     disabled={item.disabled}
                     key={item.id}
+                    tabIndex={isOpen ? undefined : -1}
                     title={item.disabled ? 'Em preparação' : undefined}
                     type="button"
                     onClick={() => onChange(item.id)}
@@ -279,6 +244,8 @@ function Sidebar({ activeTab, onChange }) {
 export default function App() {
   const [datasets, setDatasets] = useState(() => createInitialDatasets());
   const [lastSourceLabel, setLastSourceLabel] = useState('');
+  const [isDataSourceOpen, setIsDataSourceOpen] = useState(false);
+  const [sourceError, setSourceError] = useState('');
   const [filters, setFilters] = useState(EMPTY_FILTERS);
   const [correiosFilters, setCorreiosFilters] = useState(EMPTY_CORREIOS_FILTERS);
   const [activeTab, setActiveTab] = useState('overview');
@@ -323,6 +290,16 @@ export default function App() {
   const correiosAnalytics = useMemo(
     () => buildCorreiosAnalytics(correiosRecords, correiosFilters),
     [correiosRecords, correiosFilters],
+  );
+
+  const dataSourceStatus = useMemo(
+    () => getDataSourceStatus(datasets, sourceError),
+    [datasets, sourceError],
+  );
+
+  const pageMeta = useMemo(
+    () => getPageMeta(activeTab),
+    [activeTab],
   );
 
   const options = useMemo(() => ({
@@ -443,14 +420,22 @@ export default function App() {
     <div className="app-shell notranslate" translate="no">
       <Sidebar activeTab={activeTab} onChange={setActiveTab} />
       <main className="main-shell">
-        <Header activeLabel={getActiveLabel(activeTab)} onPrint={() => window.print()} />
+        <Header
+          dataSourceStatus={dataSourceStatus}
+          onDataSourceClick={() => setIsDataSourceOpen(true)}
+          onPrint={() => window.print()}
+          pageMeta={pageMeta}
+        />
         <UploadBox
           dataSourceUrl={dataSourceUrl}
           datasetConfigs={DATASET_CONFIGS}
           datasetStatuses={datasets}
+          isOpen={isDataSourceOpen}
           lastSourceLabel={lastSourceLabel}
+          onClose={() => setIsDataSourceOpen(false)}
           onDatasetLoading={handleDatasetLoading}
           onDatasetsLoaded={handleDatasetsLoaded}
+          onSourceErrorChange={setSourceError}
           onSourceUrlChange={setDataSourceUrl}
         />
 
