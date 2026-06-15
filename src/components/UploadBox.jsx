@@ -94,7 +94,7 @@ export default function UploadBox({
       const detectedType = manualDatasetId || detectDatasetType(rows);
 
       if (!detectedType) {
-        throw new Error('Não foi possível identificar a base. Selecione Bobinas ou Envios Correios antes de importar.');
+        throw new Error('Não foi possível identificar a base. Selecione Bobinas, Consolidado Bobinas ou Envios Correios antes de importar.');
       }
 
       onDatasetLoading([detectedType]);

@@ -30,6 +30,24 @@ const CORREIOS_COLUMN_HINTS = [
   'chamado',
 ];
 
+const CONSOLIDADO_COLUMN_HINTS = [
+  'destino',
+  'uf',
+  'qtd transacoes',
+  'qtd transações',
+  'solicitacao de bobinas',
+  'solicitação de bobinas',
+  'qt correios bobinas',
+  'diferenca',
+  'diferença',
+  '56 mm x 16 m',
+  '56 mm x 30 m',
+  'custo total bobinas',
+  'custo correios',
+  'custo total operacao',
+  'custo total operação',
+];
+
 function toColumnKey(value) {
   return normalizeText(value).replace(/[^a-z0-9]/g, '');
 }
@@ -58,6 +76,11 @@ export function detectDatasetType(rows) {
 
   const bobinasScore = scoreHeaders(headers, BOBINAS_COLUMN_HINTS);
   const correiosScore = scoreHeaders(headers, CORREIOS_COLUMN_HINTS);
+  const consolidadoScore = scoreHeaders(headers, CONSOLIDADO_COLUMN_HINTS);
+
+  if (consolidadoScore >= 6 && consolidadoScore >= bobinasScore && consolidadoScore >= correiosScore) {
+    return 'consolidado';
+  }
 
   if (correiosScore >= 6 && correiosScore > bobinasScore) {
     return 'correios';

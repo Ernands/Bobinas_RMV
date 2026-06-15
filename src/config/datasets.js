@@ -8,6 +8,14 @@ export const DATASET_CONFIGS = [
     enabled: true,
   },
   {
+    id: 'consolidado',
+    sheetName: 'Consolidado Bobinas',
+    gid: '1318139925',
+    label: 'Consolidado Bobinas',
+    type: 'consolidado',
+    enabled: true,
+  },
+  {
     id: 'correios',
     sheetName: 'Envios Correios',
     gid: '641203793',

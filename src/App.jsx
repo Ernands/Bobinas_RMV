@@ -25,7 +25,14 @@ import {
   getCorreiosYearOptions,
   resolveDefaultCorreiosYear,
 } from './utils/correiosAnalytics';
+import {
+  buildConsolidatedAnalytics,
+  EMPTY_CONSOLIDATED_FILTERS,
+  getConsolidatedYearOptions,
+  resolveDefaultConsolidatedYear,
+} from './utils/consolidatedAnalytics';
 import { formatMonth } from './utils/dateUtils';
+import { normalizeConsolidatedRows } from './utils/consolidatedNormalization';
 import { normalizeCorreiosRows } from './utils/correiosNormalization';
 import { normalizeRows } from './utils/normalization';
 import { loadDataSourceUrl, loadPurchases, saveDataSourceUrl, savePurchases } from './utils/storage';
@@ -54,7 +61,6 @@ const BOBINAS_FILTER_TABS = new Set([
   'bobbin16',
   'bobbin30',
   'coverage',
-  'destinations',
 ]);
 
 function uniqueOptions(records, field) {
@@ -159,6 +165,9 @@ function normalizeDatasetRows(datasetId, rows) {
   if (config?.type === 'correios') {
     return normalizeCorreiosRows(rows);
   }
+  if (config?.type === 'consolidado') {
+    return normalizeConsolidatedRows(rows);
+  }
   return normalizeGenericRows(rows);
 }
 
@@ -248,6 +257,7 @@ export default function App() {
   const [sourceError, setSourceError] = useState('');
   const [filters, setFilters] = useState(EMPTY_FILTERS);
   const [correiosFilters, setCorreiosFilters] = useState(EMPTY_CORREIOS_FILTERS);
+  const [consolidatedFilters, setConsolidatedFilters] = useState(EMPTY_CONSOLIDATED_FILTERS);
   const [activeTab, setActiveTab] = useState('overview');
   const [includePartialMonth, setIncludePartialMonth] = useState(false);
   const [rawPurchases, setRawPurchases] = useState(() => loadPurchases());
@@ -255,6 +265,7 @@ export default function App() {
 
   const records = datasets.bobinas?.records || [];
   const correiosRecords = datasets.correios?.records || [];
+  const consolidatedRecords = datasets.consolidado?.records || [];
 
   useEffect(() => {
     savePurchases(rawPurchases);
@@ -277,6 +288,19 @@ export default function App() {
     ));
   }, [correiosRecords]);
 
+  useEffect(() => {
+    const years = getConsolidatedYearOptions(consolidatedRecords);
+    if (!years.length) {
+      return;
+    }
+
+    setConsolidatedFilters((current) => (
+      years.includes(String(current.year))
+        ? current
+        : { ...current, year: resolveDefaultConsolidatedYear(consolidatedRecords) }
+    ));
+  }, [consolidatedRecords]);
+
   const filteredRecords = useMemo(
     () => applyFilters(records, filters),
     [records, filters],
@@ -290,6 +314,11 @@ export default function App() {
   const correiosAnalytics = useMemo(
     () => buildCorreiosAnalytics(correiosRecords, correiosFilters),
     [correiosRecords, correiosFilters],
+  );
+
+  const consolidatedAnalytics = useMemo(
+    () => buildConsolidatedAnalytics(consolidatedRecords, consolidatedFilters),
+    [consolidatedRecords, consolidatedFilters],
   );
 
   const dataSourceStatus = useMemo(
@@ -389,8 +418,14 @@ export default function App() {
     if (loadedIds.includes('bobinas')) {
       setFilters(EMPTY_FILTERS);
     }
+    if (loadedIds.includes('consolidado')) {
+      setConsolidatedFilters(EMPTY_CONSOLIDATED_FILTERS);
+    }
     if (loadedIds.length === 1 && loadedIds[0] === 'correios') {
       setActiveTab('correios');
+    }
+    if (loadedIds.length === 1 && loadedIds[0] === 'consolidado') {
+      setActiveTab('destinations');
     }
   }
 
@@ -472,7 +507,15 @@ export default function App() {
             />
           ) : null}
           {activeTab === 'coverage' ? <Coverage {...pageProps} /> : null}
-          {activeTab === 'destinations' ? <Destinations {...pageProps} /> : null}
+          {activeTab === 'destinations' ? (
+            <Destinations
+              analytics={consolidatedAnalytics}
+              datasetState={datasets.consolidado}
+              filters={consolidatedFilters}
+              hasData={consolidatedRecords.length > 0}
+              onFiltersChange={setConsolidatedFilters}
+            />
+          ) : null}
           {activeTab === 'correios' ? (
             <Correios
               analytics={correiosAnalytics}
@@ -491,7 +534,11 @@ export default function App() {
             />
           ) : null}
           {activeTab === 'exports' ? (
-            <Exports analytics={analytics} correiosAnalytics={correiosAnalytics} />
+            <Exports
+              analytics={analytics}
+              consolidatedAnalytics={consolidatedAnalytics}
+              correiosAnalytics={correiosAnalytics}
+            />
           ) : null}
         </div>
       </main>

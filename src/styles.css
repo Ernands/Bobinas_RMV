@@ -572,6 +572,10 @@ button:disabled {
   gap: 12px;
 }
 
+.consolidated-filter-grid .check-field {
+  align-self: end;
+}
+
 .destination-filters {
   display: grid;
   grid-template-columns: minmax(140px, 180px) minmax(260px, 1fr) minmax(150px, 180px) minmax(220px, auto);
@@ -846,6 +850,65 @@ button:disabled {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
   gap: 12px;
+}
+
+.status-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 12px;
+}
+
+.status-card {
+  display: grid;
+  gap: 7px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #1f2937;
+  padding: 14px;
+  text-align: left;
+  transition:
+    border-color 140ms ease,
+    background 140ms ease,
+    transform 140ms ease;
+}
+
+.status-card:hover,
+.status-card.active {
+  border-color: #2563eb;
+  transform: translateY(-1px);
+}
+
+.status-card span {
+  color: #6b7280;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.status-card strong {
+  color: #111827;
+  font-size: 25px;
+  line-height: 1;
+}
+
+.status-card small {
+  color: #6b7280;
+  font-size: 12px;
+}
+
+.status-card.success {
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+}
+
+.status-card.warning {
+  border-color: #fde68a;
+  background: #fffbeb;
+}
+
+.status-card.danger {
+  border-color: #fecaca;
+  background: #fef2f2;
 }
 
 .alert-box {
@@ -1304,7 +1367,8 @@ tbody tr:last-child td {
 
   .cards-grid.three,
   .export-grid,
-  .calltype-card-grid {
+  .calltype-card-grid,
+  .status-card-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
@@ -1353,6 +1417,7 @@ tbody tr:last-child td {
   .cards-grid.three,
   .export-grid,
   .calltype-card-grid,
+  .status-card-grid,
   .filters-grid,
   .purchase-form {
     grid-template-columns: 1fr;

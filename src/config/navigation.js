@@ -85,9 +85,9 @@ export const NAV_GROUPS = [
       },
       {
         id: 'destinations',
-        label: 'Destinos',
+        label: 'Consolidado por Destino',
         icon: MapPinned,
-        subtitle: 'Distribuição por destinos e UF',
+        subtitle: 'Análise de solicitações, custos, envios Correios e divergências por destino',
       },
     ],
   },

@@ -1,8 +1,9 @@
 import { Download, Printer } from 'lucide-react';
 import { downloadCsv } from '../utils/csvExport';
+import { CONSOLIDATED_MONTHS } from '../utils/consolidatedConstants';
 import { formatDateBR } from '../utils/dateUtils';
 
-export default function Exports({ analytics, correiosAnalytics }) {
+export default function Exports({ analytics, consolidatedAnalytics, correiosAnalytics }) {
   const bobinasActions = [
     {
       label: 'Relatório mensal em CSV',
@@ -39,8 +40,8 @@ export default function Exports({ analytics, correiosAnalytics }) {
       ],
     },
     {
-      label: 'Relatório por destino em CSV',
-      filename: 'relatorio-destinos.csv',
+      label: 'Destinos da base Bobinas em CSV',
+      filename: 'bobinas-destinos-base-bruta.csv',
       rows: analytics.destinations,
       columns: [
         { label: 'Destino', key: 'destination' },
@@ -71,6 +72,105 @@ export default function Exports({ analytics, correiosAnalytics }) {
       ],
     },
   ];
+  const consolidatedActions = consolidatedAnalytics ? [
+    {
+      label: 'Consolidado filtrado por destino em CSV',
+      filename: 'consolidado-destinos-filtrado.csv',
+      rows: consolidatedAnalytics.filteredRecords,
+      columns: [
+        { label: 'Destino', key: 'destination' },
+        { label: 'UF', key: 'uf' },
+        { label: 'Qtd transações', key: 'transactions' },
+        { label: 'Solicitação de Bobinas', key: 'requested' },
+        { label: 'Qt Correios bobinas', key: 'correios' },
+        { label: 'Diferença', key: 'difference' },
+        { label: 'Status', key: 'status' },
+        { label: 'Faixa de transações', key: 'transactionRangeLabel' },
+        { label: 'Qt 16 m', key: 'boxes16' },
+        { label: '56 MM X 16 M', key: 'units16' },
+        { label: 'Custo 16 m', key: 'cost16' },
+        { label: 'Qt 30 m', key: 'boxes30' },
+        { label: '56 MM X 30 M', key: 'units30' },
+        { label: 'Custo 30 m', key: 'cost30' },
+        { label: 'Custo Total Bobinas', key: 'bobbinCost' },
+        { label: 'Custo Correios', key: 'correiosCost' },
+        { label: 'Custo Total Operação', key: 'operationCost' },
+        ...CONSOLIDATED_MONTHS.map((month) => ({
+          label: month.label,
+          value: (row) => row.months?.[month.key] || 0,
+        })),
+      ],
+    },
+    {
+      label: 'Resumo Consolidado por UF em CSV',
+      filename: 'consolidado-resumo-uf.csv',
+      rows: consolidatedAnalytics.ufSummary,
+      columns: [
+        { label: 'UF', key: 'uf' },
+        { label: 'Destinos', key: 'destinations' },
+        { label: 'Transações', key: 'transactions' },
+        { label: 'Solicitação de Bobinas', key: 'requested' },
+        { label: 'Qt Correios bobinas', key: 'correios' },
+        { label: 'Diferença', key: 'difference' },
+        { label: 'Custo Total Bobinas', key: 'bobbinCost' },
+        { label: 'Custo Correios', key: 'correiosCost' },
+        { label: 'Custo Total Operação', key: 'operationCost' },
+      ],
+    },
+    {
+      label: 'Ranking Consolidado de destinos em CSV',
+      filename: 'consolidado-ranking-destinos.csv',
+      rows: consolidatedAnalytics.rankings.byRequested,
+      columns: [
+        { label: 'Destino', key: 'destination' },
+        { label: 'UF', key: 'uf' },
+        { label: 'Transações', key: 'transactions' },
+        { label: 'Solicitações no recorte', key: 'requestedView' },
+        { label: 'Caixas equivalentes no recorte', key: 'boxesView' },
+        { label: 'Custo Bobinas no recorte', key: 'bobbinCostView' },
+        { label: 'Custo Correios', key: 'correiosCost' },
+        { label: 'Custo Total Operação', key: 'operationCost' },
+        { label: 'Status', key: 'status' },
+      ],
+    },
+    {
+      label: 'Análise por faixa de transações em CSV',
+      filename: 'consolidado-faixas-transacoes.csv',
+      rows: consolidatedAnalytics.rangeAnalysis,
+      columns: [
+        { label: 'Faixa', key: 'range' },
+        { label: 'Destinos', key: 'destinations' },
+        { label: 'Transações', key: 'transactions' },
+        { label: 'Solicitação de Bobinas', key: 'requested' },
+        { label: 'Qt Correios bobinas', key: 'correios' },
+        { label: 'Diferença', key: 'difference' },
+        { label: 'Custo Total Operação', key: 'operationCost' },
+      ],
+    },
+    {
+      label: 'Status operacional Consolidado em CSV',
+      filename: 'consolidado-status-operacional.csv',
+      rows: consolidatedAnalytics.statusSummary,
+      columns: [
+        { label: 'Status', key: 'status' },
+        { label: 'Destinos', key: 'destinations' },
+        { label: 'Solicitação de Bobinas', key: 'requested' },
+        { label: 'Qt Correios bobinas', key: 'correios' },
+        { label: 'Diferença', key: 'difference' },
+        { label: 'Custo Total Operação', key: 'operationCost' },
+      ],
+    },
+    {
+      label: 'Evolução mensal Consolidado em CSV',
+      filename: 'consolidado-evolucao-mensal.csv',
+      rows: consolidatedAnalytics.monthly,
+      columns: [
+        { label: 'Mês', key: 'month' },
+        { label: 'Solicitações', key: 'requested' },
+        { label: 'Destinos ativos', key: 'destinations' },
+      ],
+    },
+  ] : [];
   const correiosActions = correiosAnalytics ? [
     {
       label: 'Resumo anual Correios em CSV',
@@ -200,7 +300,7 @@ export default function Exports({ analytics, correiosAnalytics }) {
       ],
     },
   ] : [];
-  const actions = [...bobinasActions, ...correiosActions];
+  const actions = [...bobinasActions, ...consolidatedActions, ...correiosActions];
 
   return (
     <div className="page-grid">
