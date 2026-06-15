@@ -303,6 +303,12 @@ function detailedColumns() {
     { key: 'difference', label: 'Diferença', value: (row) => formatInteger(row.difference), sortValue: (row) => row.difference },
     { key: 'status', label: 'Status', render: (row) => <StatusBadge status={row.status} /> },
     { key: 'transactionRangeLabel', label: 'Faixa' },
+    ...CONSOLIDATED_MONTHS.map((month) => ({
+      key: month.key,
+      label: month.shortLabel,
+      value: (row) => formatInteger(row.months?.[month.key] || 0),
+      sortValue: (row) => row.months?.[month.key] || 0,
+    })),
     { key: 'boxes16', label: 'Qt 16 m', value: (row) => formatInteger(row.boxes16), sortValue: (row) => row.boxes16 },
     { key: 'units16', label: 'Unid. 16 m', value: (row) => formatInteger(row.units16), sortValue: (row) => row.units16 },
     { key: 'cost16', label: 'Custo 16 m', value: (row) => formatCurrency(row.cost16), sortValue: (row) => row.cost16 },
