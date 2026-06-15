@@ -256,8 +256,6 @@ function exportDetailedRecords(rows) {
     { label: 'Solicitação de Bobinas', key: 'requested' },
     { label: 'Qt Correios bobinas', key: 'correios' },
     { label: 'Diferença', key: 'difference' },
-    { label: 'Status', key: 'status' },
-    { label: 'Faixa de transações', key: 'transactionRangeLabel' },
     { label: 'Qt 16 m', key: 'boxes16' },
     { label: '56 MM X 16 M', key: 'units16' },
     { label: 'Custo 16 m', key: 'cost16' },
@@ -267,6 +265,7 @@ function exportDetailedRecords(rows) {
     { label: 'Custo Total Bobinas', key: 'bobbinCost' },
     { label: 'Custo Correios', key: 'correiosCost' },
     { label: 'Custo Total Operação', key: 'operationCost' },
+    { label: 'Status', key: 'status' },
     ...CONSOLIDATED_MONTHS.map((month) => ({
       label: month.label,
       value: (row) => row.months?.[month.key] || 0,
@@ -297,27 +296,26 @@ function detailedColumns() {
   return [
     { key: 'destination', label: 'Destino', render: (row) => <span translate="no">{row.destination}</span> },
     { key: 'uf', label: 'UF', render: (row) => <span className="uf-pill" translate="no">{row.uf}</span> },
-    { key: 'transactions', label: 'Transações', value: (row) => formatInteger(row.transactions), sortValue: (row) => row.transactions },
-    { key: 'requested', label: 'Solicitação', value: (row) => formatInteger(row.requested), sortValue: (row) => row.requested },
-    { key: 'correios', label: 'Correios', value: (row) => formatInteger(row.correios), sortValue: (row) => row.correios },
+    { key: 'transactions', label: 'Qtd transações', value: (row) => formatInteger(row.transactions), sortValue: (row) => row.transactions },
+    { key: 'requested', label: 'Solicitação de Bobinas', value: (row) => formatInteger(row.requested), sortValue: (row) => row.requested },
+    { key: 'correios', label: 'Qt Correios bobinas', value: (row) => formatInteger(row.correios), sortValue: (row) => row.correios },
     { key: 'difference', label: 'Diferença', value: (row) => formatInteger(row.difference), sortValue: (row) => row.difference },
+    { key: 'boxes16', label: 'Qt 16 m', value: (row) => formatInteger(row.boxes16), sortValue: (row) => row.boxes16 },
+    { key: 'units16', label: '56 MM X 16 M', value: (row) => formatInteger(row.units16), sortValue: (row) => row.units16 },
+    { key: 'cost16', label: 'Custo 16 m', value: (row) => formatCurrency(row.cost16), sortValue: (row) => row.cost16 },
+    { key: 'boxes30', label: 'Qt 30 m', value: (row) => formatInteger(row.boxes30), sortValue: (row) => row.boxes30 },
+    { key: 'units30', label: '56 MM X 30 M', value: (row) => formatInteger(row.units30), sortValue: (row) => row.units30 },
+    { key: 'cost30', label: 'Custo 30 m', value: (row) => formatCurrency(row.cost30), sortValue: (row) => row.cost30 },
+    { key: 'bobbinCost', label: 'Custo Total Bobinas', value: (row) => formatCurrency(row.bobbinCost), sortValue: (row) => row.bobbinCost },
+    { key: 'correiosCost', label: 'Custo Correios', value: (row) => formatCurrency(row.correiosCost), sortValue: (row) => row.correiosCost },
+    { key: 'operationCost', label: 'Custo Total Operação', value: (row) => formatCurrency(row.operationCost), sortValue: (row) => row.operationCost },
     { key: 'status', label: 'Status', render: (row) => <StatusBadge status={row.status} /> },
-    { key: 'transactionRangeLabel', label: 'Faixa' },
     ...CONSOLIDATED_MONTHS.map((month) => ({
       key: month.key,
       label: month.shortLabel,
       value: (row) => formatInteger(row.months?.[month.key] || 0),
       sortValue: (row) => row.months?.[month.key] || 0,
     })),
-    { key: 'boxes16', label: 'Qt 16 m', value: (row) => formatInteger(row.boxes16), sortValue: (row) => row.boxes16 },
-    { key: 'units16', label: 'Unid. 16 m', value: (row) => formatInteger(row.units16), sortValue: (row) => row.units16 },
-    { key: 'cost16', label: 'Custo 16 m', value: (row) => formatCurrency(row.cost16), sortValue: (row) => row.cost16 },
-    { key: 'boxes30', label: 'Qt 30 m', value: (row) => formatInteger(row.boxes30), sortValue: (row) => row.boxes30 },
-    { key: 'units30', label: 'Unid. 30 m', value: (row) => formatInteger(row.units30), sortValue: (row) => row.units30 },
-    { key: 'cost30', label: 'Custo 30 m', value: (row) => formatCurrency(row.cost30), sortValue: (row) => row.cost30 },
-    { key: 'bobbinCost', label: 'Custo Bobinas', value: (row) => formatCurrency(row.bobbinCost), sortValue: (row) => row.bobbinCost },
-    { key: 'correiosCost', label: 'Custo Correios', value: (row) => formatCurrency(row.correiosCost), sortValue: (row) => row.correiosCost },
-    { key: 'operationCost', label: 'Custo Operação', value: (row) => formatCurrency(row.operationCost), sortValue: (row) => row.operationCost },
   ];
 }
 
@@ -519,7 +517,7 @@ export default function Destinations({ analytics, datasetState, filters, hasData
       </section>
 
       <ChartCard title="Tabela detalhada do consolidado" subtitle="Destino a destino com custos, tipos e divergências">
-        <DataTable columns={detailedColumns()} rows={analytics.filteredRecords} />
+        <DataTable columns={detailedColumns()} rows={analytics.filteredRecords} topScrollbar />
       </ChartCard>
     </div>
   );

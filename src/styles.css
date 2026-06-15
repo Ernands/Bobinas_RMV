@@ -961,12 +961,39 @@ button:disabled {
   line-height: 1.5;
 }
 
+.table-frame {
+  width: 100%;
+}
+
 .table-shell {
   width: 100%;
   overflow: auto;
   border: 1px solid #e5e7eb;
   border-radius: 8px;
   background: #ffffff;
+}
+
+.table-frame.has-top-scrollbar .table-shell {
+  border: 0;
+  border-radius: 0;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.table-frame.has-top-scrollbar .table-shell::-webkit-scrollbar {
+  display: none;
+}
+
+.table-scrollbar-top {
+  height: 18px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  border-bottom: 1px solid #e5e7eb;
+  background: #f9fafb;
+}
+
+.table-scrollbar-top > div {
+  height: 1px;
 }
 
 .chart-card .table-shell,
