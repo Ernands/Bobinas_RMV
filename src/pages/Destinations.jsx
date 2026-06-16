@@ -248,6 +248,97 @@ function StatusBadge({ status }) {
   return <span className={`pill${tone ? ` ${tone}` : ''}`}>{status}</span>;
 }
 
+function buildRangeModelRows(rows) {
+  const total = rows.reduce((summary, row) => ({
+    id: 'total',
+    range: 'TOTAIS',
+    isTotal: true,
+    destinations: summary.destinations + row.destinations,
+    requested: summary.requested + row.requested,
+    boxes16: summary.boxes16 + row.boxes16,
+    boxes30: summary.boxes30 + row.boxes30,
+  }), {
+    id: 'total',
+    range: 'TOTAIS',
+    isTotal: true,
+    destinations: 0,
+    requested: 0,
+    boxes16: 0,
+    boxes30: 0,
+  });
+
+  return [...rows, total];
+}
+
+function rangeModelColumns() {
+  return [
+    {
+      key: 'range',
+      label: 'Transações',
+      sortable: false,
+      render: (row) => (row.isTotal ? <strong>{row.range}</strong> : row.range),
+    },
+    {
+      key: 'destinations',
+      label: 'Qt Cobans',
+      sortable: false,
+      value: (row) => formatInteger(row.destinations),
+    },
+    {
+      key: 'requested',
+      label: 'Solicitações',
+      sortable: false,
+      value: (row) => formatInteger(row.requested),
+    },
+    {
+      key: 'boxes16',
+      label: 'Envio 16 m cx',
+      sortable: false,
+      value: (row) => formatInteger(row.boxes16),
+    },
+    {
+      key: 'boxes30',
+      label: 'Envio 30 m cx',
+      sortable: false,
+      value: (row) => formatInteger(row.boxes30),
+    },
+  ];
+}
+
+function buildMonthlyModelRows(monthlyRows) {
+  const byMonth = new Map(monthlyRows.map((row) => [row.monthKey, row]));
+  const metricRows = [
+    { id: 'requested', label: 'Solicitações', key: 'requested', format: formatInteger },
+    { id: 'shipments', label: 'Envios', key: 'shipments', format: formatInteger },
+    { id: 'boxes16', label: 'Qt Envio Caixa 16 M', key: 'boxes16', format: formatInteger },
+    { id: 'boxes30', label: 'QT Envio Caixa 30 M', key: 'boxes30', format: formatInteger },
+    { id: 'bobbinCost', label: 'Custo Bobinas', key: 'bobbinCost', format: formatCurrency },
+    { id: 'correiosCost', label: 'Custo Correios', key: 'correiosCost', format: formatCurrency },
+    { id: 'operationCost', label: 'Custo Total', key: 'operationCost', format: formatCurrency },
+  ];
+
+  return metricRows.map((metric) => ({
+    id: metric.id,
+    metric: metric.label,
+    values: Object.fromEntries(CONSOLIDATED_MONTHS.map((month) => [
+      month.key,
+      metric.format(byMonth.get(month.key)?.[metric.key] || 0),
+    ])),
+  }));
+}
+
+function monthlyModelColumns() {
+  return [
+    { key: 'metric', label: '', sortable: false },
+    ...CONSOLIDATED_MONTHS.map((month) => ({
+      key: month.key,
+      label: month.shortLabel,
+      sortable: false,
+      value: (row) => row.values[month.key],
+    })),
+  ];
+}
+
 function exportDetailedRecords(rows) {
   downloadCsv('consolidado-destinos-filtrado.csv', rows, [
     { label: 'Destino', key: 'destination' },
@@ -345,6 +436,8 @@ function rankingColumns() {
 export default function Destinations({ analytics, datasetState, filters, hasData, onFiltersChange }) {
   const missingColumns = datasetState?.meta?.missingColumns || [];
   const topUfChart = useMemo(() => analytics.ufSummary.slice(0, 10), [analytics.ufSummary]);
+  const rangeModelRows = useMemo(() => buildRangeModelRows(analytics.rangeAnalysis), [analytics.rangeAnalysis]);
+  const monthlyModelRows = useMemo(() => buildMonthlyModelRows(analytics.monthly), [analytics.monthly]);
 
   if (!hasData) {
     return (
@@ -426,6 +519,17 @@ export default function Destinations({ analytics, datasetState, filters, hasData
         </div>
       </section>
       <AlertBox alerts={analytics.alerts} />
+
+      <section className="charts-grid two">
+        <ChartCard title="Modelo por faixa de transações" subtitle="Transações referentes ao mês anterior">
+          <DataTable columns={rangeModelColumns()} rows={rangeModelRows} />
+          <p className="table-note">* Transações referentes ao mês anterior.</p>
+        </ChartCard>
+
+        <ChartCard title="Resumo mensal operacional" subtitle="Caixas e custos rateados pela participação mensal das solicitações no destino">
+          <DataTable columns={monthlyModelColumns()} rows={monthlyModelRows} topScrollbar />
+        </ChartCard>
+      </section>
 
       <section className="charts-grid two">
         <ChartCard title="Evolução mensal Jan-Dez" subtitle="Solicitações por mês no recorte filtrado">

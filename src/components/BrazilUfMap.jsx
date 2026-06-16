@@ -1,49 +1,28 @@
+import { useMemo, useState } from 'react';
+import { MapPinned } from 'lucide-react';
+import { BRAZIL_MAP_VIEWBOX, BRAZIL_STATE_PATHS } from '../data/brazilStatePaths';
 import { formatCurrency, formatDecimal, formatInteger } from '../utils/calculations';
 
-const UF_LAYOUT = [
-  { uf: 'RR', name: 'Roraima', row: 1, col: 4 },
-  { uf: 'AP', name: 'Amapá', row: 1, col: 7 },
-  { uf: 'AM', name: 'Amazonas', row: 2, col: 3 },
-  { uf: 'PA', name: 'Pará', row: 2, col: 6 },
-  { uf: 'MA', name: 'Maranhão', row: 2, col: 8 },
-  { uf: 'CE', name: 'Ceará', row: 2, col: 10 },
-  { uf: 'RN', name: 'Rio Grande do Norte', row: 2, col: 11 },
-  { uf: 'AC', name: 'Acre', row: 3, col: 1 },
-  { uf: 'RO', name: 'Rondônia', row: 3, col: 3 },
-  { uf: 'TO', name: 'Tocantins', row: 3, col: 7 },
-  { uf: 'PI', name: 'Piauí', row: 3, col: 9 },
-  { uf: 'PB', name: 'Paraíba', row: 3, col: 11 },
-  { uf: 'PE', name: 'Pernambuco', row: 4, col: 11 },
-  { uf: 'MT', name: 'Mato Grosso', row: 4, col: 5 },
-  { uf: 'GO', name: 'Goiás', row: 5, col: 7 },
-  { uf: 'BA', name: 'Bahia', row: 5, col: 10 },
-  { uf: 'AL', name: 'Alagoas', row: 5, col: 12 },
-  { uf: 'SE', name: 'Sergipe', row: 6, col: 12 },
-  { uf: 'MS', name: 'Mato Grosso do Sul', row: 6, col: 5 },
-  { uf: 'DF', name: 'Distrito Federal', row: 6, col: 8 },
-  { uf: 'MG', name: 'Minas Gerais', row: 7, col: 9 },
-  { uf: 'ES', name: 'Espírito Santo', row: 7, col: 11 },
-  { uf: 'SP', name: 'São Paulo', row: 8, col: 8 },
-  { uf: 'RJ', name: 'Rio de Janeiro', row: 8, col: 10 },
-  { uf: 'PR', name: 'Paraná', row: 9, col: 7 },
-  { uf: 'SC', name: 'Santa Catarina', row: 10, col: 7 },
-  { uf: 'RS', name: 'Rio Grande do Sul', row: 11, col: 6 },
-];
+const UNKNOWN_UF = 'UF não identificada';
 
 const METRICS = [
-  { key: 'shipments', label: 'Envios', format: formatInteger },
   { key: 'totalCost', label: 'Valor total', format: formatCurrency },
+  { key: 'shipments', label: 'Quantidade de envios', format: formatInteger },
   { key: 'averageCost', label: 'Custo médio', format: formatCurrency },
   { key: 'totalWeight', label: 'Peso total', format: (value) => `${formatDecimal(value)} kg` },
-  { key: 'pac', label: 'PAC', format: formatInteger },
-  { key: 'sedex', label: 'SEDEX', format: formatInteger },
-  { key: 'reversos', label: 'Reversos', format: formatInteger },
+  { key: 'pac', label: 'Quantidade PAC', format: formatInteger },
+  { key: 'sedex', label: 'Quantidade SEDEX', format: formatInteger },
+  { key: 'reversos', label: 'Quantidade Reversos', format: formatInteger },
 ];
 
-function emptyUfRow(uf) {
+const COLOR_SCALE = ['#DBEAFE', '#93C5FD', '#60A5FA', '#2563EB', '#1D4ED8'];
+const EMPTY_COLOR = '#F3F4F6';
+
+function emptyUfRow(uf, stateName = uf) {
   return {
     id: uf,
     name: uf,
+    stateName,
     shipments: 0,
     totalCost: 0,
     averageCost: 0,
@@ -58,6 +37,50 @@ function metricValue(row, metric) {
   return Number(row?.[metric] || 0);
 }
 
+function colorForValue(value, maxValue) {
+  if (!value || !maxValue) {
+    return EMPTY_COLOR;
+  }
+
+  const index = Math.min(
+    COLOR_SCALE.length - 1,
+    Math.max(0, Math.ceil((value / maxValue) * COLOR_SCALE.length) - 1),
+  );
+  return COLOR_SCALE[index];
+}
+
+function tooltipLines(row) {
+  return [
+    `${row.stateName || row.name} (${row.name})`,
+    `Valor total: ${formatCurrency(row.totalCost)}`,
+    `Quantidade de envios: ${formatInteger(row.shipments)}`,
+    `Custo médio: ${formatCurrency(row.averageCost)}`,
+    `Peso total: ${formatDecimal(row.totalWeight)} kg`,
+    `PAC: ${formatInteger(row.pac)}`,
+    `SEDEX: ${formatInteger(row.sedex)}`,
+    `Reversos: ${formatInteger(row.reversos)}`,
+  ];
+}
+
+function RankingList({ metric, onUfClick, rows, title }) {
+  const metricConfig = METRICS.find((item) => item.key === metric) || METRICS[0];
+
+  return (
+    <div className="uf-ranking-list">
+      <h4>{title}</h4>
+      {rows.length ? rows.map((row, index) => (
+        <button key={`${title}-${row.name}`} type="button" onClick={() => onUfClick(row.name)}>
+          <span className="uf-ranking-index">{index + 1}</span>
+          <strong>{row.name}</strong>
+          <span>{metricConfig.format(metricValue(row, metric))}</span>
+        </button>
+      )) : (
+        <p>Nenhuma UF com dados no recorte.</p>
+      )}
+    </div>
+  );
+}
+
 export default function BrazilUfMap({
   metric = 'totalCost',
   onMetricChange,
@@ -65,19 +88,44 @@ export default function BrazilUfMap({
   rows,
   selectedUf,
 }) {
-  const byUf = new Map((rows || []).map((row) => [row.name, row]));
+  const [tooltip, setTooltip] = useState(null);
   const metricConfig = METRICS.find((item) => item.key === metric) || METRICS[0];
-  const maxValue = Math.max(
-    0,
-    ...UF_LAYOUT.map((item) => metricValue(byUf.get(item.uf), metric)),
-  );
-  const unknown = byUf.get('UF não identificada');
 
-  function intensity(row) {
-    if (!maxValue || !metricValue(row, metric)) {
-      return 0;
+  const { maxValue, minValue, stateRows, topByQuantity, topByValue, unknown } = useMemo(() => {
+    const byUf = new Map((rows || []).map((row) => [row.name, row]));
+    const mappedStates = BRAZIL_STATE_PATHS.map((state) => ({
+      ...state,
+      row: {
+        ...emptyUfRow(state.uf, state.name),
+        ...(byUf.get(state.uf) || {}),
+        name: state.uf,
+        stateName: state.name,
+      },
+    }));
+    const values = mappedStates
+      .map((state) => metricValue(state.row, metric))
+      .filter((value) => value > 0);
+    const rankedRows = (rows || []).filter((row) => row.name !== UNKNOWN_UF);
+
+    return {
+      maxValue: values.length ? Math.max(...values) : 0,
+      minValue: values.length ? Math.min(...values) : 0,
+      stateRows: mappedStates,
+      topByQuantity: [...rankedRows].sort((a, b) => b.shipments - a.shipments || b.totalCost - a.totalCost).slice(0, 5),
+      topByValue: [...rankedRows].sort((a, b) => b.totalCost - a.totalCost || b.shipments - a.shipments).slice(0, 5),
+      unknown: byUf.get(UNKNOWN_UF) || null,
+    };
+  }, [metric, rows]);
+
+  function handleUfClick(uf) {
+    onUfClick(selectedUf === uf ? '' : uf);
+  }
+
+  function handleKeyDown(event, uf) {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      handleUfClick(uf);
     }
-    return Math.max(1, Math.ceil((metricValue(row, metric) / maxValue) * 4));
   }
 
   return (
@@ -85,7 +133,7 @@ export default function BrazilUfMap({
       <div className="section-heading compact">
         <div>
           <h3>Distribuição por UF</h3>
-          <p>Mapa por UF respeitando os filtros ativos.</p>
+          <p>Mapa coroplético do Brasil por estado, respeitando os filtros ativos.</p>
         </div>
         <label className="field inline-field">
           <span>Métrica</span>
@@ -99,47 +147,92 @@ export default function BrazilUfMap({
         </label>
       </div>
 
-      <div className="brazil-uf-map" aria-label="Mapa Brasil por UF">
-        {UF_LAYOUT.map((item) => {
-          const row = byUf.get(item.uf) || emptyUfRow(item.uf);
-          const title = [
-            `${item.name} (${item.uf})`,
-            `Envios: ${formatInteger(row.shipments)}`,
-            `Valor total: ${formatCurrency(row.totalCost)}`,
-            `Custo médio: ${formatCurrency(row.averageCost)}`,
-            `Peso total: ${formatDecimal(row.totalWeight)} kg`,
-            `PAC: ${formatInteger(row.pac)}`,
-            `SEDEX: ${formatInteger(row.sedex)}`,
-            `Reversos: ${formatInteger(row.reversos)}`,
-          ].join('\n');
+      <div className="brazil-map-layout">
+        <div className="brazil-map-panel">
+          <svg className="brazil-map-svg" role="img" viewBox={BRAZIL_MAP_VIEWBOX} aria-label="Mapa do Brasil por UF">
+            <title>Distribuição dos envios dos Correios por UF</title>
+            {stateRows.map(({ d, label, row, uf }) => {
+              const value = metricValue(row, metric);
+              const fill = colorForValue(value, maxValue);
+              const isSelected = selectedUf === uf;
+              const title = tooltipLines(row).join('\n');
 
-          return (
-            <button
-              className={`uf-map-tile level-${intensity(row)}${selectedUf === item.uf ? ' selected' : ''}`}
-              key={item.uf}
-              style={{ gridColumn: item.col, gridRow: item.row }}
-              title={title}
-              type="button"
-              onClick={() => onUfClick(selectedUf === item.uf ? '' : item.uf)}
-            >
-              <strong>{item.uf}</strong>
-              <span>{metricConfig.format(metricValue(row, metric))}</span>
-            </button>
-          );
-        })}
+              return (
+                <g key={uf}>
+                  <title>{title}</title>
+                  <path
+                    aria-label={title}
+                    className={`brazil-state-path${isSelected ? ' selected' : ''}${value ? '' : ' empty'}`}
+                    d={d}
+                    fill={fill}
+                    role="button"
+                    strokeWidth={isSelected ? 2.6 : 1}
+                    tabIndex={0}
+                    onBlur={() => setTooltip(null)}
+                    onClick={() => handleUfClick(uf)}
+                    onFocus={(event) => {
+                      const rect = event.currentTarget.getBoundingClientRect();
+                      setTooltip({ row, x: rect.left + rect.width / 2, y: rect.top });
+                    }}
+                    onKeyDown={(event) => handleKeyDown(event, uf)}
+                    onMouseLeave={() => setTooltip(null)}
+                    onMouseMove={(event) => setTooltip({ row, x: event.clientX, y: event.clientY })}
+                  />
+                  <text className={`brazil-state-label${value ? '' : ' empty'}`} x={label[0]} y={label[1]}>
+                    {uf}
+                  </text>
+                </g>
+              );
+            })}
+          </svg>
+
+          <div className="map-legend" aria-label={`Legenda da métrica ${metricConfig.label}`}>
+            <span>Menor</span>
+            <div className="map-legend-scale">
+              {COLOR_SCALE.map((color) => <i key={color} style={{ background: color }} />)}
+            </div>
+            <span>Maior</span>
+            <strong>{metricConfig.format(maxValue)}</strong>
+          </div>
+          <div className="map-legend-note">
+            <span className="map-empty-swatch" />
+            Estados sem dados aparecem em cinza.
+            {minValue ? <span> Menor valor positivo: {metricConfig.format(minValue)}.</span> : null}
+          </div>
+        </div>
+
+        <aside className="uf-map-sidebar">
+          <div className="uf-map-selected">
+            <MapPinned size={18} aria-hidden="true" />
+            <div>
+              <span>UF selecionada</span>
+              <strong>{selectedUf || 'Todas'}</strong>
+            </div>
+          </div>
+          <RankingList metric="totalCost" onUfClick={handleUfClick} rows={topByValue} title="Top UFs por valor" />
+          <RankingList metric="shipments" onUfClick={handleUfClick} rows={topByQuantity} title="Top UFs por quantidade" />
+        </aside>
       </div>
 
       {unknown?.shipments ? (
         <button
-          className={`unknown-uf-row${selectedUf === 'UF não identificada' ? ' selected' : ''}`}
+          className={`unknown-uf-row${selectedUf === UNKNOWN_UF ? ' selected' : ''}`}
           type="button"
-          onClick={() => onUfClick(selectedUf === 'UF não identificada' ? '' : 'UF não identificada')}
+          onClick={() => handleUfClick(UNKNOWN_UF)}
         >
           <strong>UF não identificada</strong>
           <span>
             {formatInteger(unknown.shipments)} envios · {formatCurrency(unknown.totalCost)}
           </span>
         </button>
+      ) : null}
+
+      {tooltip ? (
+        <div className="map-tooltip" style={{ left: tooltip.x, top: tooltip.y }}>
+          {tooltipLines(tooltip.row).map((line, index) => (
+            index ? <span key={line}>{line}</span> : <strong key={line}>{line}</strong>
+          ))}
+        </div>
       ) : null}
     </section>
   );

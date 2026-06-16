@@ -65,6 +65,15 @@ function getMonthValue(record, monthKey) {
   return Number(record.months?.[monthKey]) || 0;
 }
 
+function getMonthTotal(record) {
+  return CONSOLIDATED_MONTHS.reduce((total, month) => total + getMonthValue(record, month.key), 0);
+}
+
+function getMonthShare(record, monthKey) {
+  const total = getMonthTotal(record);
+  return total > 0 ? getMonthValue(record, monthKey) / total : 0;
+}
+
 function getRequestedValue(record, filters) {
   if (filters.month) {
     return getMonthValue(record, filters.month);
@@ -217,12 +226,25 @@ function buildSummary(records, filters) {
 function buildMonthly(records) {
   return CONSOLIDATED_MONTHS.map((month) => {
     const requested = sumBy(records, (record) => getMonthValue(record, month.key));
+    const shipments = sumBy(records, (record) => record.correios * getMonthShare(record, month.key));
+    const boxes16 = sumBy(records, (record) => record.boxes16 * getMonthShare(record, month.key));
+    const boxes30 = sumBy(records, (record) => record.boxes30 * getMonthShare(record, month.key));
+    const bobbinCost = sumBy(records, (record) => record.bobbinCost * getMonthShare(record, month.key));
+    const correiosCost = sumBy(records, (record) => record.correiosCost * getMonthShare(record, month.key));
+    const operationCost = sumBy(records, (record) => record.operationCost * getMonthShare(record, month.key));
+
     return {
       id: month.key,
       monthKey: month.key,
       month: month.label,
       shortMonth: month.shortLabel,
       requested,
+      shipments,
+      boxes16,
+      boxes30,
+      bobbinCost,
+      correiosCost,
+      operationCost,
       destinations: records.filter((record) => getMonthValue(record, month.key) > 0).length,
     };
   });
@@ -316,6 +338,10 @@ function buildRangeAnalysis(records, filters) {
     requested: 0,
     correios: 0,
     difference: 0,
+    boxes16: 0,
+    boxes30: 0,
+    bobbinCost: 0,
+    correiosCost: 0,
     operationCost: 0,
   }]));
 
@@ -330,6 +356,10 @@ function buildRangeAnalysis(records, filters) {
     current.requested += getRequestedValue(record, filters);
     current.correios += record.correios;
     current.difference += record.difference;
+    current.boxes16 += record.boxes16;
+    current.boxes30 += record.boxes30;
+    current.bobbinCost += record.bobbinCost;
+    current.correiosCost += record.correiosCost;
     current.operationCost += record.operationCost;
   });
 

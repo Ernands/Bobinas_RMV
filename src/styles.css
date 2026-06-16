@@ -1048,6 +1048,12 @@ tbody tr:last-child td {
   font-weight: inherit;
 }
 
+.table-note {
+  margin: 10px 14px 0;
+  color: #6b7280;
+  font-size: 12px;
+}
+
 .empty-cell {
   padding: 28px;
   color: #6b7280;
@@ -1269,7 +1275,8 @@ tbody tr:last-child td {
 
 .brazil-map-card {
   display: grid;
-  gap: 14px;
+  position: relative;
+  gap: 16px;
   border: 1px solid #e5e7eb;
   border-radius: 8px;
   background: #ffffff;
@@ -1277,78 +1284,196 @@ tbody tr:last-child td {
   box-shadow: 0 10px 30px rgba(15, 23, 42, 0.04);
 }
 
-.brazil-uf-map {
+.brazil-map-layout {
   display: grid;
-  grid-template-columns: repeat(12, minmax(42px, 1fr));
-  grid-template-rows: repeat(11, 48px);
-  gap: 6px;
-  overflow: auto;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 18px;
+  align-items: stretch;
+}
+
+.brazil-map-panel {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
   border: 1px solid #e5e7eb;
   border-radius: 8px;
   background:
     linear-gradient(180deg, rgba(37, 99, 235, 0.04), transparent),
     #f9fafb;
-  padding: 14px;
+  padding: 12px;
 }
 
-.uf-map-tile {
-  display: grid;
-  min-width: 42px;
-  align-content: center;
-  justify-items: center;
-  gap: 3px;
-  border: 1px solid #dbeafe;
-  border-radius: 8px;
-  background: #eff6ff;
-  color: #1e40af;
-  padding: 4px;
-  text-align: center;
+.brazil-map-svg {
+  display: block;
+  width: 100%;
+  max-height: 560px;
+  min-height: 430px;
 }
 
-.uf-map-tile strong {
+.brazil-state-path {
+  stroke: #ffffff;
+  outline: none;
+  cursor: pointer;
+  transition: fill 0.16s ease, filter 0.16s ease, stroke 0.16s ease;
+}
+
+.brazil-state-path.empty {
+  stroke: #d1d5db;
+}
+
+.brazil-state-path:hover,
+.brazil-state-path:focus-visible {
+  filter: drop-shadow(0 4px 8px rgba(15, 23, 42, 0.18));
+  stroke: #0f172a;
+}
+
+.brazil-state-path.selected {
+  filter: drop-shadow(0 5px 10px rgba(37, 99, 235, 0.26));
+  stroke: #0f172a;
+}
+
+.brazil-state-label {
+  fill: #0f172a;
+  font-size: 13px;
+  font-weight: 850;
+  paint-order: stroke;
+  pointer-events: none;
+  stroke: #ffffff;
+  stroke-linejoin: round;
+  stroke-width: 4px;
+  text-anchor: middle;
+}
+
+.brazil-state-label.empty {
+  fill: #6b7280;
+}
+
+.map-legend,
+.map-legend-note {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #6b7280;
   font-size: 12px;
 }
 
-.uf-map-tile span {
-  max-width: 100%;
-  color: inherit;
-  font-size: 10px;
-  line-height: 1.1;
+.map-legend strong {
+  margin-left: auto;
+  color: #1f2937;
+}
+
+.map-legend-scale {
+  display: flex;
   overflow: hidden;
-  text-overflow: ellipsis;
+  width: min(280px, 40%);
+  height: 10px;
+  border-radius: 999px;
+  border: 1px solid #dbeafe;
 }
 
-.uf-map-tile.level-0 {
-  border-color: #e5e7eb;
+.map-legend-scale i {
+  flex: 1;
+}
+
+.map-empty-swatch {
+  display: inline-block;
+  width: 18px;
+  height: 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 999px;
+  background: #f3f4f6;
+}
+
+.uf-map-sidebar {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  min-width: 0;
+}
+
+.uf-map-selected,
+.uf-ranking-list {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
   background: #ffffff;
-  color: #94a3b8;
+  padding: 14px;
 }
 
-.uf-map-tile.level-1 {
+.uf-map-selected {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #2563eb;
+}
+
+.uf-map-selected span {
+  display: block;
+  color: #6b7280;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.uf-map-selected strong {
+  color: #111827;
+  font-size: 18px;
+}
+
+.uf-ranking-list {
+  display: grid;
+  gap: 8px;
+}
+
+.uf-ranking-list h4 {
+  margin: 0 0 4px;
+  color: #111827;
+  font-size: 14px;
+}
+
+.uf-ranking-list p {
+  margin: 0;
+  color: #6b7280;
+  font-size: 13px;
+}
+
+.uf-ranking-list button {
+  display: grid;
+  grid-template-columns: 28px 1fr auto;
+  gap: 8px;
+  align-items: center;
+  width: 100%;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: #f9fafb;
+  padding: 8px;
+  color: #1f2937;
+  text-align: left;
+}
+
+.uf-ranking-list button:hover {
+  border-color: #bfdbfe;
+  background: #eff6ff;
+}
+
+.uf-ranking-list strong {
+  font-size: 13px;
+}
+
+.uf-ranking-list button > span:last-child {
+  color: #4b5563;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.uf-ranking-index {
+  display: inline-grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border-radius: 999px;
   background: #dbeafe;
-}
-
-.uf-map-tile.level-2 {
-  background: #93c5fd;
-  color: #0f172a;
-}
-
-.uf-map-tile.level-3 {
-  background: #3b82f6;
-  color: #ffffff;
-}
-
-.uf-map-tile.level-4 {
-  background: #1d4ed8;
-  color: #ffffff;
-}
-
-.uf-map-tile:hover,
-.uf-map-tile.selected,
-.unknown-uf-row:hover,
-.unknown-uf-row.selected {
-  border-color: #2563eb;
-  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.18);
+  color: #1d4ed8;
+  font-size: 12px;
+  font-weight: 850;
 }
 
 .unknown-uf-row {
@@ -1364,8 +1489,37 @@ tbody tr:last-child td {
   text-align: left;
 }
 
+.unknown-uf-row:hover,
+.unknown-uf-row.selected {
+  border-color: #f97316;
+  box-shadow: 0 0 0 2px rgba(249, 115, 22, 0.16);
+}
+
 .unknown-uf-row span {
   color: #9a3412;
+  font-size: 13px;
+}
+
+.map-tooltip {
+  position: fixed;
+  z-index: 30;
+  display: grid;
+  gap: 4px;
+  min-width: 210px;
+  max-width: 260px;
+  pointer-events: none;
+  transform: translate(14px, -50%);
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.97);
+  box-shadow: 0 14px 40px rgba(15, 23, 42, 0.18);
+  color: #374151;
+  padding: 10px 12px;
+  font-size: 12px;
+}
+
+.map-tooltip strong {
+  color: #111827;
   font-size: 13px;
 }
 
@@ -1405,6 +1559,14 @@ tbody tr:last-child td {
 
   .destination-filters {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .brazil-map-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .uf-map-sidebar {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 
@@ -1452,6 +1614,15 @@ tbody tr:last-child td {
 
   .destination-filters {
     grid-template-columns: 1fr;
+  }
+
+  .brazil-map-layout,
+  .uf-map-sidebar {
+    grid-template-columns: 1fr;
+  }
+
+  .brazil-map-svg {
+    min-height: 320px;
   }
 
   .source-controls {
