@@ -5,7 +5,7 @@ import { formatCurrency, formatDecimal, formatInteger } from '../utils/calculati
 
 const UNKNOWN_UF = 'UF não identificada';
 
-const METRICS = [
+const DEFAULT_METRICS = [
   { key: 'totalCost', label: 'Valor total', format: formatCurrency },
   { key: 'shipments', label: 'Quantidade de envios', format: formatInteger },
   { key: 'averageCost', label: 'Custo médio', format: formatCurrency },
@@ -49,7 +49,7 @@ function colorForValue(value, maxValue) {
   return COLOR_SCALE[index];
 }
 
-function tooltipLines(row) {
+function defaultTooltipLines(row) {
   return [
     `${row.stateName || row.name} (${row.name})`,
     `Valor total: ${formatCurrency(row.totalCost)}`,
@@ -63,7 +63,7 @@ function tooltipLines(row) {
 }
 
 function RankingList({ metric, onUfClick, rows, title }) {
-  const metricConfig = METRICS.find((item) => item.key === metric) || METRICS[0];
+  const metricConfig = DEFAULT_METRICS.find((item) => item.key === metric) || DEFAULT_METRICS[0];
 
   return (
     <div className="uf-ranking-list">
@@ -83,13 +83,21 @@ function RankingList({ metric, onUfClick, rows, title }) {
 
 export default function BrazilUfMap({
   metric = 'totalCost',
+  metrics = DEFAULT_METRICS,
   onMetricChange,
   onUfClick,
   rows,
   selectedUf,
+  tooltipFields,
 }) {
   const [tooltip, setTooltip] = useState(null);
-  const metricConfig = METRICS.find((item) => item.key === metric) || METRICS[0];
+  const metricConfig = metrics.find((item) => item.key === metric) || metrics[0] || DEFAULT_METRICS[0];
+  const tooltipBuilder = tooltipFields?.length
+    ? (row) => [
+      `${row.stateName || row.name} (${row.name})`,
+      ...tooltipFields.map((field) => `${field.label}: ${field.format(row[field.key] || 0)}`),
+    ]
+    : defaultTooltipLines;
 
   const { maxValue, minValue, stateRows, topByQuantity, topByValue, unknown } = useMemo(() => {
     const byUf = new Map((rows || []).map((row) => [row.name, row]));
@@ -138,7 +146,7 @@ export default function BrazilUfMap({
         <label className="field inline-field">
           <span>Métrica</span>
           <select value={metric} onChange={(event) => onMetricChange(event.target.value)}>
-            {METRICS.map((item) => (
+            {metrics.map((item) => (
               <option key={item.key} value={item.key}>
                 {item.label}
               </option>
@@ -155,13 +163,13 @@ export default function BrazilUfMap({
               const value = metricValue(row, metric);
               const fill = colorForValue(value, maxValue);
               const isSelected = selectedUf === uf;
-              const title = tooltipLines(row).join('\n');
+              const stateTitle = tooltipBuilder(row).join('\n');
 
               return (
                 <g key={uf}>
-                  <title>{title}</title>
+                  <title>{stateTitle}</title>
                   <path
-                    aria-label={title}
+                    aria-label={stateTitle}
                     className={`brazil-state-path${isSelected ? ' selected' : ''}${value ? '' : ' empty'}`}
                     d={d}
                     fill={fill}
@@ -229,7 +237,7 @@ export default function BrazilUfMap({
 
       {tooltip ? (
         <div className="map-tooltip" style={{ left: tooltip.x, top: tooltip.y }}>
-          {tooltipLines(tooltip.row).map((line, index) => (
+          {tooltipBuilder(tooltip.row).map((line, index) => (
             index ? <span key={line}>{line}</span> : <strong key={line}>{line}</strong>
           ))}
         </div>

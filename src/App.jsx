@@ -38,6 +38,7 @@ import { normalizeRows } from './utils/normalization';
 import { loadDataSourceUrl, loadPurchases, saveDataSourceUrl, savePurchases } from './utils/storage';
 
 const EMPTY_FILTERS = {
+  referenceYear: '',
   referenceMonth: '',
   statusMode: 'all',
   openingFrom: '',
@@ -86,6 +87,20 @@ function uniqueMonthOptions(records) {
       value: monthKey,
       label: formatMonth(monthKey),
     }));
+}
+
+function uniqueYearOptions(records) {
+  const years = new Set();
+  records.forEach((record) => {
+    if (record.openingMonth) {
+      years.add(record.openingMonth.slice(0, 4));
+    }
+    if (record.exitMonth) {
+      years.add(record.exitMonth.slice(0, 4));
+    }
+  });
+
+  return Array.from(years).sort((a, b) => b.localeCompare(a));
 }
 
 function createDatasetState(dataset) {
@@ -301,6 +316,19 @@ export default function App() {
     ));
   }, [consolidatedRecords]);
 
+  useEffect(() => {
+    const years = uniqueYearOptions(records);
+    if (!years.length) {
+      return;
+    }
+
+    setFilters((current) => (
+      current.referenceYear
+        ? current
+        : { ...current, referenceYear: years[0] }
+    ));
+  }, [records]);
+
   const filteredRecords = useMemo(
     () => applyFilters(records, filters),
     [records, filters],
@@ -332,6 +360,7 @@ export default function App() {
   );
 
   const options = useMemo(() => ({
+    years: uniqueYearOptions(records),
     months: uniqueMonthOptions(records),
     bobbinTypes: uniqueOptions(records, 'bobbinType'),
     ufs: uniqueOptions(records, 'uf'),
@@ -340,6 +369,23 @@ export default function App() {
     shippingMethods: uniqueOptions(records, 'shippingMethod'),
     callTypes: uniqueOptions(records, 'callType'),
   }), [records]);
+
+  const overviewOptions = useMemo(() => ({
+    years: Array.from(new Set([
+      ...options.years,
+      ...correiosAnalytics.options.years,
+      ...consolidatedAnalytics.options.years,
+    ].filter(Boolean))).sort((a, b) => b.localeCompare(a)),
+    ufs: Array.from(new Set([
+      ...options.ufs,
+      ...correiosAnalytics.options.ufs,
+      ...consolidatedAnalytics.options.ufs,
+    ].filter(Boolean))).sort((a, b) => a.localeCompare(b, 'pt-BR')),
+    callTypes: Array.from(new Set([
+      ...options.callTypes,
+      ...correiosAnalytics.options.callTypes,
+    ].filter(Boolean))).sort((a, b) => a.localeCompare(b, 'pt-BR')),
+  }), [options, correiosAnalytics.options, consolidatedAnalytics.options]);
 
   function handleDatasetLoading(datasetIds) {
     setDatasets((current) => {
@@ -449,7 +495,7 @@ export default function App() {
     onIncludePartialMonthChange: setIncludePartialMonth,
   };
 
-  const showBobinasFilters = records.length > 0 && BOBINAS_FILTER_TABS.has(activeTab);
+  const showBobinasFilters = records.length > 0 && activeTab !== 'overview' && BOBINAS_FILTER_TABS.has(activeTab);
 
   return (
     <div className="app-shell notranslate" translate="no">
@@ -484,7 +530,23 @@ export default function App() {
         ) : null}
 
         <div className="content-area">
-          {activeTab === 'overview' ? <Overview {...pageProps} /> : null}
+          {activeTab === 'overview' ? (
+            <Overview
+              {...pageProps}
+              bobinasFilters={filters}
+              consolidatedAnalytics={consolidatedAnalytics}
+              consolidatedFilters={consolidatedFilters}
+              correiosAnalytics={correiosAnalytics}
+              correiosFilters={correiosFilters}
+              datasetStates={datasets}
+              hasConsolidatedData={consolidatedRecords.length > 0}
+              hasCorreiosData={correiosRecords.length > 0}
+              onBobinasFiltersChange={setFilters}
+              onConsolidatedFiltersChange={setConsolidatedFilters}
+              onCorreiosFiltersChange={setCorreiosFilters}
+              overviewOptions={overviewOptions}
+            />
+          ) : null}
           {activeTab === 'executive' ? (
             <ExecutiveSummary
               bobinasAnalytics={analytics}

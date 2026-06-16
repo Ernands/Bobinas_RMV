@@ -572,6 +572,14 @@ button:disabled {
   gap: 12px;
 }
 
+.overview-main-filters {
+  margin: 0;
+}
+
+.overview-filter-grid {
+  grid-template-columns: repeat(6, minmax(150px, 1fr));
+}
+
 .consolidated-filter-grid .check-field {
   align-self: end;
 }
@@ -714,6 +722,49 @@ button:disabled {
 
 .metrics-grid.compact-metrics {
   grid-template-columns: repeat(4, minmax(180px, 1fr));
+}
+
+.dataset-status-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(170px, 1fr));
+  gap: 12px;
+}
+
+.dataset-status-card {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 14px;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.04);
+}
+
+.dataset-status-card > svg {
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  background: #eff6ff;
+  color: #2563eb;
+  padding: 10px;
+}
+
+.dataset-status-card strong,
+.dataset-status-card span,
+.dataset-status-card small {
+  display: block;
+}
+
+.dataset-status-card strong {
+  color: #111827;
+}
+
+.dataset-status-card span,
+.dataset-status-card small {
+  color: #6b7280;
+  font-size: 12px;
 }
 
 .metric-card {
@@ -953,6 +1004,44 @@ button:disabled {
 
 .alert-box.info svg {
   color: #2563eb;
+}
+
+.impact-list {
+  display: grid;
+  gap: 10px;
+}
+
+.impact-item {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #f9fafb;
+  padding: 12px;
+}
+
+.impact-item > span {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border-radius: 999px;
+  background: #2563eb;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.impact-item strong {
+  display: block;
+  color: #111827;
+}
+
+.impact-item p {
+  margin: 4px 0 0;
+  color: #6b7280;
 }
 
 .interpretation {
@@ -1536,6 +1625,7 @@ tbody tr:last-child td {
     grid-template-columns: repeat(4, minmax(130px, 1fr));
   }
 
+  .dataset-status-grid,
   .metrics-grid,
   .metrics-grid.compact-metrics {
     grid-template-columns: repeat(2, minmax(0, 1fr));

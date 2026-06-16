@@ -219,6 +219,12 @@ function finalizeMonthlyDemand(row) {
 export function applyFilters(records, filters) {
   return records.filter((record) => {
     const status = normalizeStatus(record.status);
+    if (
+      filters.referenceYear
+      && ![record.openingMonth, record.exitMonth].some((monthKey) => monthKey?.startsWith(`${filters.referenceYear}-`))
+    ) {
+      return false;
+    }
     if (filters.statusMode === 'sent' && status !== 'enviado') {
       return false;
     }

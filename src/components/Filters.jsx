@@ -56,6 +56,20 @@ export default function Filters({ filters, options, onChange, onReset }) {
       {isOpen ? (
         <div className="filters-grid">
           <label className="field">
+            <span>Ano</span>
+            <select
+              value={filters.referenceYear}
+              onChange={(event) => setFilter('referenceYear', event.target.value)}
+            >
+              <option value="">Todos</option>
+              {(options.years || []).map((year) => (
+                <option key={year} value={year}>
+                  {year}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="field">
             <span>Mês/Ano</span>
             <select value={filters.referenceMonth} onChange={(event) => setFilter('referenceMonth', event.target.value)}>
               <option value="">Todos</option>
