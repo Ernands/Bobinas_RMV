@@ -11,23 +11,28 @@ import {
   YAxis,
 } from 'recharts';
 import {
-  AlertTriangle,
+  BarChart3,
   Boxes,
-  DatabaseZap,
+  CircleHelp,
   DollarSign,
+  GraduationCap,
+  Headphones,
+  Mail,
+  Megaphone,
+  Monitor,
   PackageCheck,
+  PackageOpen,
   Search,
   Truck,
+  User,
+  Wrench,
 } from 'lucide-react';
 import AlertBox from '../components/AlertBox';
 import BrazilUfMap from '../components/BrazilUfMap';
 import ChartCard from '../components/ChartCard';
 import DataTable from '../components/DataTable';
-import MetricCard from '../components/MetricCard';
-import { DATASET_CONFIGS } from '../config/datasets';
 import { CONSOLIDATED_MONTHS } from '../utils/consolidatedConstants';
-import { formatDateBR } from '../utils/dateUtils';
-import { formatCurrency, formatInteger } from '../utils/calculations';
+import { formatCurrency, formatInteger, formatPercent } from '../utils/calculations';
 
 const BASE_OPTIONS = [
   { value: 'all', label: 'Todas' },
@@ -52,6 +57,52 @@ const OVERVIEW_UF_TOOLTIP = [
   { key: 'requested', label: 'Solicitações', format: formatInteger },
   { key: 'correiosCost', label: 'Gasto Correios', format: formatCurrency },
   { key: 'operationCost', label: 'Custo total operação', format: formatCurrency },
+];
+
+const EQUIPMENT_RETURN_ALIASES = [
+  'Devolução de Equipamento',
+  'Devolução equipamento',
+  'Devolucao de Equipamento',
+  'Devolucao equipamento',
+];
+
+const CALL_TYPE_CARDS = [
+  {
+    title: 'Problema Técnico - Equipamento / Conexão',
+    aliases: ['Problema Técnico - Equipamento / Conexão', 'Problema Tecnico - Equipamento / Conexao'],
+    icon: Wrench,
+    tone: 'blue',
+  },
+  {
+    title: 'Treinamento - Instalação',
+    aliases: ['Treinamento - Instalação', 'Treinamento - Instalacao'],
+    icon: GraduationCap,
+    tone: 'green',
+  },
+  {
+    title: 'Material de Divulgação e Sinalização',
+    aliases: ['Material de Divulgação e Sinalização', 'Material de Divulgacao e Sinalizacao'],
+    icon: Megaphone,
+    tone: 'purple',
+  },
+  {
+    title: 'Equipamento ou Periférico Adicional',
+    aliases: ['Equipamento ou Periférico Adicional', 'Equipamento ou Periferico Adicional'],
+    icon: Monitor,
+    tone: 'teal',
+  },
+  {
+    title: 'Substituição Upgrade',
+    aliases: ['Substituição Upgrade', 'Substituicao Upgrade'],
+    icon: PackageOpen,
+    tone: 'yellow',
+  },
+  {
+    title: 'Não informado',
+    aliases: ['Não informado', 'Nao informado'],
+    icon: CircleHelp,
+    tone: 'gray',
+  },
 ];
 
 function DashboardEmptyState() {
@@ -109,6 +160,64 @@ function sumRows(rows, key) {
   return rows.reduce((sum, row) => sum + (Number(row[key]) || 0), 0);
 }
 
+function normalizeText(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase();
+}
+
+function uniqueCount(records, field) {
+  return new Set(
+    records
+      .map((record) => record[field])
+      .filter((value) => value && normalizeText(value) !== 'nao informado'),
+  ).size;
+}
+
+function averageCost(records) {
+  const total = records.reduce((sum, record) => sum + (record.serviceValue || 0), 0);
+  return records.length ? total / records.length : 0;
+}
+
+function summarizeCorreios(records = []) {
+  const pacRecords = records.filter((record) => record.isPac);
+  const sedexRecords = records.filter((record) => record.isSedex);
+  const totalCost = records.reduce((sum, record) => sum + (record.serviceValue || 0), 0);
+
+  return {
+    records,
+    shipments: records.length,
+    cobans: uniqueCount(records, 'coban'),
+    pac: pacRecords.length,
+    pacAverage: averageCost(pacRecords),
+    sedex: sedexRecords.length,
+    sedexAverage: averageCost(sedexRecords),
+    average: records.length ? totalCost / records.length : 0,
+    totalCost,
+  };
+}
+
+function filterCallType(records, aliases) {
+  const normalizedAliases = aliases.map(normalizeText);
+  return records.filter((record) => {
+    const callType = normalizeText(record.callType);
+    return normalizedAliases.some((alias) => callType === alias || callType.includes(alias));
+  });
+}
+
+function buildCorreiosRows(summary) {
+  return [
+    { icon: Headphones, label: 'Atendimentos', value: formatInteger(summary.shipments) },
+    { icon: User, label: 'Cobans', value: formatInteger(summary.cobans) },
+    { icon: Truck, label: 'PAC', value: formatInteger(summary.pac), detail: `Custo m\u00e9dio ${formatCurrency(summary.pacAverage)}` },
+    { icon: Truck, label: 'SEDEX', value: formatInteger(summary.sedex), detail: `Custo m\u00e9dio ${formatCurrency(summary.sedexAverage)}` },
+    { icon: BarChart3, label: 'Custo m\u00e9dio geral', value: formatCurrency(summary.average) },
+    { icon: Mail, label: 'Custo Correios', value: formatCurrency(summary.totalCost) },
+  ];
+}
+
 function buildSentUnitsByMonth(records = []) {
   const map = new Map();
   records.forEach((record) => {
@@ -162,6 +271,7 @@ function buildOverviewMonthlyRows({
 }
 
 function buildRangeRows(rangeAnalysis = []) {
+  const totalRequested = rangeAnalysis.reduce((sum, row) => sum + row.requested, 0);
   const total = rangeAnalysis.reduce((summary, row) => ({
     id: 'total',
     range: 'TOTAIS',
@@ -180,7 +290,16 @@ function buildRangeRows(rangeAnalysis = []) {
     boxes30: 0,
   });
 
-  return [...rangeAnalysis, total];
+  return [
+    ...rangeAnalysis.map((row) => ({
+      ...row,
+      percentage: totalRequested ? (row.requested / totalRequested) * 100 : 0,
+    })),
+    {
+      ...total,
+      percentage: totalRequested ? 100 : 0,
+    },
+  ];
 }
 
 function buildMonthlyReportRows(monthlyRows) {
@@ -255,59 +374,6 @@ function buildOverviewUfRows(consolidatedUfRows = [], correiosUfRows = []) {
       shipments: row.quantity,
     };
   }).sort((a, b) => b.totalCost - a.totalCost || b.quantity - a.quantity || a.name.localeCompare(b.name, 'pt-BR'));
-}
-
-function latestDateLabel(state) {
-  const records = state?.records || [];
-  const dates = records
-    .flatMap((record) => [record.openingDate, record.exitDate, record.postingDate])
-    .filter(Boolean);
-
-  if (dates.length) {
-    const latest = dates.reduce((max, date) => (date > max ? date : max), dates[0]);
-    return formatDateBR(latest);
-  }
-
-  const years = records.map((record) => record.year).filter(Boolean).sort((a, b) => b - a);
-  return years[0] ? String(years[0]) : 'Sem data';
-}
-
-function datasetTone(state, config) {
-  if (!config.enabled) {
-    return { label: 'Aguardando', tone: 'warning' };
-  }
-  if (state?.status === 'error' || state?.meta?.missingColumns?.length) {
-    return { label: 'Erro', tone: 'danger' };
-  }
-  if (state?.status === 'loaded' && state.records?.length) {
-    return { label: 'OK', tone: 'success' };
-  }
-  if (state?.status === 'loaded') {
-    return { label: 'Sem dados', tone: 'warning' };
-  }
-  return { label: 'Aguardando', tone: 'warning' };
-}
-
-function DatasetStatusCards({ datasetStates }) {
-  return (
-    <section className="dataset-status-grid">
-      {DATASET_CONFIGS.map((config) => {
-        const state = datasetStates?.[config.id];
-        const status = datasetTone(state, config);
-        return (
-          <article className="dataset-status-card" key={config.id}>
-            <DatabaseZap size={22} aria-hidden="true" />
-            <div>
-              <strong>{config.label}</strong>
-              <span>{formatInteger(state?.records?.length || 0)} registros</span>
-              <small>{latestDateLabel(state)}</small>
-            </div>
-            <b className={`pill ${status.tone}`}>{status.label}</b>
-          </article>
-        );
-      })}
-    </section>
-  );
 }
 
 function OverviewFilters({
@@ -457,6 +523,51 @@ function OperationalImpacts({ rows }) {
   );
 }
 
+function ExecutiveMetricRow({ detail, icon: Icon, label, value }) {
+  return (
+    <div className="executive-metric-row">
+      <Icon size={18} aria-hidden="true" />
+      <strong>{value}</strong>
+      <span>{label}</span>
+      {detail ? <small>{detail}</small> : null}
+    </div>
+  );
+}
+
+function ExecutiveCard({ footer, icon: Icon, rows, title, tone = 'blue' }) {
+  return (
+    <article className={`executive-card ${tone}`}>
+      <header>
+        <span className="executive-card-icon">
+          <Icon size={26} aria-hidden="true" />
+        </span>
+        <h3>{title}</h3>
+      </header>
+      <div className="executive-card-body">
+        {rows.map((row) => (
+          <ExecutiveMetricRow key={`${title}-${row.label}`} {...row} />
+        ))}
+      </div>
+      {footer ? (
+        <footer>
+          <strong>{footer.value}</strong>
+          <span>{footer.label}</span>
+        </footer>
+      ) : null}
+    </article>
+  );
+}
+
+function OverviewExecutiveCards({ cards }) {
+  return (
+    <section className="overview-executive-section">
+      <div className="overview-executive-grid">
+        {cards.map((card) => <ExecutiveCard key={card.title} {...card} />)}
+      </div>
+    </section>
+  );
+}
+
 export default function Overview({
   analytics,
   bobinasFilters,
@@ -464,7 +575,6 @@ export default function Overview({
   consolidatedFilters,
   correiosAnalytics,
   correiosFilters,
-  datasetStates,
   hasConsolidatedData,
   hasCorreiosData,
   hasData,
@@ -527,7 +637,6 @@ export default function Overview({
       sortValue: (row) => (matrixMode === 'value' ? row.totalCost : row.totalShipments),
     },
   ], [correiosAnalytics.monthly, matrixMode]);
-  const criticalAlertCount = visibleAlerts.filter((alert) => alert.type === 'danger' || alert.type === 'warning').length;
   const hasAnyData = hasData || hasConsolidatedData || hasCorreiosData;
   const totals = {
     records: (
@@ -542,6 +651,61 @@ export default function Overview({
     operationCost: sumRows(monthlyRows, 'operationCost'),
   };
   const difference = totals.requested - totals.sent;
+  const correiosRecordsForCards = hasBase(baseScope, 'correios') ? correiosAnalytics.filteredRecords : [];
+  const consolidatedRowsForCards = hasBase(baseScope, 'consolidado') ? consolidatedAnalytics.filteredRecords : [];
+  const totalCorreiosSummary = summarizeCorreios(correiosRecordsForCards);
+  const equipmentReturnSummary = summarizeCorreios(filterCallType(correiosRecordsForCards, EQUIPMENT_RETURN_ALIASES));
+  const totalCobans = new Set([
+    ...consolidatedRowsForCards.map((row) => row.destination),
+    ...correiosRecordsForCards.map((row) => row.coban),
+  ].filter((value) => value && normalizeText(value) !== 'nao informado')).size;
+  const bobinasBoxes = sumRows(monthlyRows, 'boxes16') + sumRows(monthlyRows, 'boxes30');
+  const bobinasCorreiosCost = hasBase(baseScope, 'consolidado') ? consolidatedAnalytics.summary.correiosCost : 0;
+  const bobinasTotalCost = totals.bobbinCost + bobinasCorreiosCost;
+  const executiveCardsBase = [
+    {
+      title: 'Total Geral',
+      icon: BarChart3,
+      tone: 'red',
+      rows: [
+        { icon: Headphones, label: 'Atendimentos/Solicita\u00e7\u00f5es', value: formatInteger(totals.requested + totalCorreiosSummary.shipments) },
+        { icon: User, label: 'Cobans', value: formatInteger(totalCobans) },
+        { icon: Truck, label: 'PAC', value: formatInteger(totalCorreiosSummary.pac), detail: `Custo m\u00e9dio ${formatCurrency(totalCorreiosSummary.pacAverage)}` },
+        { icon: Truck, label: 'SEDEX', value: formatInteger(totalCorreiosSummary.sedex), detail: `Custo m\u00e9dio ${formatCurrency(totalCorreiosSummary.sedexAverage)}` },
+        { icon: BarChart3, label: 'Custo m\u00e9dio geral', value: formatCurrency(totalCorreiosSummary.average) },
+        { icon: Mail, label: 'Custo Correios', value: formatCurrency(totalCorreiosSummary.totalCost) },
+      ],
+    },
+    {
+      title: 'Solicita\u00e7\u00e3o Bobinas',
+      icon: Boxes,
+      tone: 'blue',
+      rows: [
+        { icon: PackageCheck, label: 'Solicita\u00e7\u00f5es', value: formatInteger(totals.requested) },
+        { icon: User, label: 'Cobans', value: formatInteger(consolidatedAnalytics.summary.destinations) },
+        { icon: Boxes, label: 'Caixas', value: formatInteger(bobinasBoxes) },
+        { icon: DollarSign, label: 'Custo Bobinas', value: formatCurrency(totals.bobbinCost) },
+        { icon: Truck, label: 'Custo Correios', value: formatCurrency(bobinasCorreiosCost) },
+      ],
+      footer: {
+        label: 'Custo Total',
+        value: formatCurrency(bobinasTotalCost),
+      },
+    },
+    {
+      title: 'Devolu\u00e7\u00e3o de Equipamento',
+      icon: PackageOpen,
+      tone: 'orange',
+      rows: buildCorreiosRows(equipmentReturnSummary),
+    },
+  ];
+  const executiveCards = [
+    ...executiveCardsBase,
+    ...CALL_TYPE_CARDS.map((card) => ({
+      ...card,
+      rows: buildCorreiosRows(summarizeCorreios(filterCallType(correiosRecordsForCards, card.aliases))),
+    })),
+  ];
   const topCallType = correiosAnalytics.summary.topCallType;
   const topRange = consolidatedAnalytics.rangeAnalysis
     .filter((row) => row.requested > 0)
@@ -588,18 +752,7 @@ export default function Overview({
         selectedYear={selectedYear}
       />
 
-      <DatasetStatusCards datasetStates={datasetStates} />
-
-      <section className="metrics-grid">
-        <MetricCard icon={DatabaseZap} title="Registros carregados" value={formatInteger(totals.records)} subtitle="recorte filtrado" />
-        <MetricCard icon={Boxes} title="Bobinas solicitadas" value={formatInteger(totals.requested)} subtitle="consolidado anual" tone="primary" />
-        <MetricCard icon={Truck} title="Bobinas enviadas" value={formatInteger(totals.sent)} subtitle="sem status pendente" tone="success" />
-        <MetricCard icon={AlertTriangle} title="Diferença Solicitação x Correios" value={formatInteger(difference)} tone={difference ? 'warning' : 'success'} />
-        <MetricCard icon={PackageCheck} title="Custo Bobinas" value={formatCurrency(totals.bobbinCost)} subtitle="56x16 e 56x30" />
-        <MetricCard icon={DollarSign} title="Gasto Correios" value={formatCurrency(totals.correiosCost)} tone="primary" />
-        <MetricCard icon={DollarSign} title="Custo Total Operação" value={formatCurrency(totals.operationCost)} tone="warning" />
-        <MetricCard icon={AlertTriangle} title="Alertas críticos" value={formatInteger(criticalAlertCount)} tone={criticalAlertCount ? 'warning' : 'success'} />
-      </section>
+      <OverviewExecutiveCards cards={executiveCards} />
 
       {!hasAnyData ? <DashboardEmptyState /> : <AlertBox alerts={visibleAlerts} />}
 
@@ -635,12 +788,13 @@ export default function Overview({
         </ChartCard>
       </section>
 
-      <section className="charts-grid two">
+      <section className="overview-report-stack">
         <ChartCard title="Relatório por faixa de transações" subtitle="Transações referentes ao mês anterior">
           <DataTable
             columns={[
               { key: 'range', label: 'Transações', sortable: false, render: (row) => (row.isTotal ? <strong>{row.range}</strong> : row.range) },
               { key: 'destinations', label: 'Qt Cobans', sortable: false, value: (row) => formatInteger(row.destinations) },
+              { key: 'percentage', label: '%', sortable: false, value: (row) => formatPercent(row.percentage) },
               { key: 'requested', label: 'Solicitações', sortable: false, value: (row) => formatInteger(row.requested) },
               { key: 'boxes16', label: 'Envio 16 m cx', sortable: false, value: (row) => formatInteger(row.boxes16) },
               { key: 'boxes30', label: 'Envio 30 m cx', sortable: false, value: (row) => formatInteger(row.boxes30) },

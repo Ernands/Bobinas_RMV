@@ -248,95 +248,106 @@ function StatusBadge({ status }) {
   return <span className={`pill${tone ? ` ${tone}` : ''}`}>{status}</span>;
 }
 
-function buildRangeModelRows(rows) {
-  const total = rows.reduce((summary, row) => ({
-    id: 'total',
-    range: 'TOTAIS',
-    isTotal: true,
-    destinations: summary.destinations + row.destinations,
-    requested: summary.requested + row.requested,
-    boxes16: summary.boxes16 + row.boxes16,
-    boxes30: summary.boxes30 + row.boxes30,
-  }), {
-    id: 'total',
-    range: 'TOTAIS',
-    isTotal: true,
-    destinations: 0,
-    requested: 0,
-    boxes16: 0,
-    boxes30: 0,
+const DETAIL_BOBBIN_TYPE_OPTIONS = [
+  { value: 'all', label: 'Todos' },
+  { value: '16', label: '56 MM X 16 M' },
+  { value: '30', label: '56 MM X 30 M' },
+];
+
+function normalizeDetailText(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase();
+}
+
+function rowHasBobbinType(row, type) {
+  if (type === '16') {
+    return row.units16 > 0 || row.boxes16 > 0 || row.cost16 > 0;
+  }
+  if (type === '30') {
+    return row.units30 > 0 || row.boxes30 > 0 || row.cost30 > 0;
+  }
+  return true;
+}
+
+function filterDetailedRows(rows, filters) {
+  const query = normalizeDetailText(filters.search);
+
+  return rows.filter((row) => {
+    if (query) {
+      const text = normalizeDetailText([
+        row.destination,
+        row.uf,
+        row.status,
+        row.transactionRangeLabel,
+        row.transactionRange,
+      ].join(' '));
+
+      if (!text.includes(query)) {
+        return false;
+      }
+    }
+    if (filters.uf && row.uf !== filters.uf) {
+      return false;
+    }
+    if (filters.bobbinType !== 'all' && !rowHasBobbinType(row, filters.bobbinType)) {
+      return false;
+    }
+    if (filters.transactionRange && row.transactionRange !== filters.transactionRange) {
+      return false;
+    }
+    return true;
   });
-
-  return [...rows, total];
 }
 
-function rangeModelColumns() {
-  return [
-    {
-      key: 'range',
-      label: 'Transações',
-      sortable: false,
-      render: (row) => (row.isTotal ? <strong>{row.range}</strong> : row.range),
-    },
-    {
-      key: 'destinations',
-      label: 'Qt Cobans',
-      sortable: false,
-      value: (row) => formatInteger(row.destinations),
-    },
-    {
-      key: 'requested',
-      label: 'Solicitações',
-      sortable: false,
-      value: (row) => formatInteger(row.requested),
-    },
-    {
-      key: 'boxes16',
-      label: 'Envio 16 m cx',
-      sortable: false,
-      value: (row) => formatInteger(row.boxes16),
-    },
-    {
-      key: 'boxes30',
-      label: 'Envio 30 m cx',
-      sortable: false,
-      value: (row) => formatInteger(row.boxes30),
-    },
-  ];
-}
+function DetailTableFilters({ filters, onFiltersChange, options, totalRows, visibleRows }) {
+  function updateFilter(key, value) {
+    onFiltersChange({
+      ...filters,
+      [key]: value,
+    });
+  }
 
-function buildMonthlyModelRows(monthlyRows) {
-  const byMonth = new Map(monthlyRows.map((row) => [row.monthKey, row]));
-  const metricRows = [
-    { id: 'requested', label: 'Solicitações', key: 'requested', format: formatInteger },
-    { id: 'shipments', label: 'Envios', key: 'shipments', format: formatInteger },
-    { id: 'boxes16', label: 'Qt Envio Caixa 16 M', key: 'boxes16', format: formatInteger },
-    { id: 'boxes30', label: 'QT Envio Caixa 30 M', key: 'boxes30', format: formatInteger },
-    { id: 'bobbinCost', label: 'Custo Bobinas', key: 'bobbinCost', format: formatCurrency },
-    { id: 'correiosCost', label: 'Custo Correios', key: 'correiosCost', format: formatCurrency },
-    { id: 'operationCost', label: 'Custo Total', key: 'operationCost', format: formatCurrency },
-  ];
-
-  return metricRows.map((metric) => ({
-    id: metric.id,
-    metric: metric.label,
-    values: Object.fromEntries(CONSOLIDATED_MONTHS.map((month) => [
-      month.key,
-      metric.format(byMonth.get(month.key)?.[metric.key] || 0),
-    ])),
-  }));
-}
-
-function monthlyModelColumns() {
-  return [
-    { key: 'metric', label: '', sortable: false },
-    ...CONSOLIDATED_MONTHS.map((month) => ({
-      key: month.key,
-      label: month.shortLabel,
-      sortable: false,
-      value: (row) => row.values[month.key],
-    })),
-  ];
+  return (
+    <div className="detail-filter-bar">
+      <label className="field search-field">
+        <span>Pesquisar Coban</span>
+        <div className="search-input">
+          <Search size={16} aria-hidden="true" />
+          <input
+            placeholder="Coban, UF, status ou faixa"
+            value={filters.search}
+            onChange={(event) => updateFilter('search', event.target.value)}
+          />
+        </div>
+      </label>
+      <SelectFilter
+        label="UF"
+        options={options.ufs}
+        value={filters.uf}
+        onChange={(value) => updateFilter('uf', value)}
+      />
+      <label className="field">
+        <span>Tipo bobina</span>
+        <select value={filters.bobbinType} onChange={(event) => updateFilter('bobbinType', event.target.value)}>
+          {DETAIL_BOBBIN_TYPE_OPTIONS.map((option) => (
+            <option key={option.value} value={option.value}>{option.label}</option>
+          ))}
+        </select>
+      </label>
+      <SelectFilter
+        label="Faixa de transações"
+        options={options.transactionRanges}
+        value={filters.transactionRange}
+        onChange={(value) => updateFilter('transactionRange', value)}
+      />
+      <span className="detail-filter-count">
+        {formatInteger(visibleRows)} de {formatInteger(totalRows)} destinos
+      </span>
+    </div>
+  );
 }
 
 function exportDetailedRecords(rows) {
@@ -436,8 +447,16 @@ function rankingColumns() {
 export default function Destinations({ analytics, datasetState, filters, hasData, onFiltersChange }) {
   const missingColumns = datasetState?.meta?.missingColumns || [];
   const topUfChart = useMemo(() => analytics.ufSummary.slice(0, 10), [analytics.ufSummary]);
-  const rangeModelRows = useMemo(() => buildRangeModelRows(analytics.rangeAnalysis), [analytics.rangeAnalysis]);
-  const monthlyModelRows = useMemo(() => buildMonthlyModelRows(analytics.monthly), [analytics.monthly]);
+  const [detailFilters, setDetailFilters] = useState({
+    search: '',
+    uf: '',
+    bobbinType: 'all',
+    transactionRange: '',
+  });
+  const detailedRows = useMemo(
+    () => filterDetailedRows(analytics.filteredRecords, detailFilters),
+    [analytics.filteredRecords, detailFilters],
+  );
 
   if (!hasData) {
     return (
@@ -519,17 +538,6 @@ export default function Destinations({ analytics, datasetState, filters, hasData
         </div>
       </section>
       <AlertBox alerts={analytics.alerts} />
-
-      <section className="charts-grid two">
-        <ChartCard title="Modelo por faixa de transações" subtitle="Transações referentes ao mês anterior">
-          <DataTable columns={rangeModelColumns()} rows={rangeModelRows} />
-          <p className="table-note">* Transações referentes ao mês anterior.</p>
-        </ChartCard>
-
-        <ChartCard title="Resumo mensal operacional" subtitle="Caixas e custos rateados pela participação mensal das solicitações no destino">
-          <DataTable columns={monthlyModelColumns()} rows={monthlyModelRows} topScrollbar />
-        </ChartCard>
-      </section>
 
       <section className="charts-grid two">
         <ChartCard title="Evolução mensal Jan-Dez" subtitle="Solicitações por mês no recorte filtrado">
@@ -621,7 +629,14 @@ export default function Destinations({ analytics, datasetState, filters, hasData
       </section>
 
       <ChartCard title="Tabela detalhada do consolidado" subtitle="Destino a destino com custos, tipos e divergências">
-        <DataTable columns={detailedColumns()} rows={analytics.filteredRecords} topScrollbar />
+        <DetailTableFilters
+          filters={detailFilters}
+          onFiltersChange={setDetailFilters}
+          options={analytics.options}
+          totalRows={analytics.filteredRecords.length}
+          visibleRows={detailedRows.length}
+        />
+        <DataTable columns={detailedColumns()} rows={detailedRows} topScrollbar />
       </ChartCard>
     </div>
   );

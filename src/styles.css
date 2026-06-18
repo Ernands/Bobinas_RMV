@@ -828,6 +828,177 @@ button:disabled {
   font-size: 12px;
 }
 
+.overview-executive-section {
+  display: grid;
+  gap: 14px;
+}
+
+.overview-executive-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 14px;
+  align-items: stretch;
+}
+
+.executive-card {
+  --tone: #2563eb;
+  --tone-soft: #eff6ff;
+  --tone-border: #bfdbfe;
+  display: grid;
+  min-height: 354px;
+  grid-template-rows: auto 1fr auto;
+  gap: 12px;
+  border: 1px solid var(--tone-border);
+  border-top: 3px solid var(--tone);
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--tone-soft) 72%, #ffffff), #ffffff 42%),
+    #ffffff;
+  padding: 16px;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.04);
+}
+
+.executive-card.blue {
+  --tone: #2563eb;
+  --tone-soft: #eff6ff;
+  --tone-border: #bfdbfe;
+}
+
+.executive-card.orange {
+  --tone: #f97316;
+  --tone-soft: #fff7ed;
+  --tone-border: #fed7aa;
+}
+
+.executive-card.red {
+  --tone: #dc2626;
+  --tone-soft: #fef2f2;
+  --tone-border: #fecaca;
+}
+
+.executive-card.green {
+  --tone: #16a34a;
+  --tone-soft: #f0fdf4;
+  --tone-border: #bbf7d0;
+}
+
+.executive-card.purple {
+  --tone: #7c3aed;
+  --tone-soft: #f5f3ff;
+  --tone-border: #ddd6fe;
+}
+
+.executive-card.teal {
+  --tone: #0f766e;
+  --tone-soft: #f0fdfa;
+  --tone-border: #99f6e4;
+}
+
+.executive-card.yellow {
+  --tone: #f59e0b;
+  --tone-soft: #fffbeb;
+  --tone-border: #fde68a;
+}
+
+.executive-card.gray {
+  --tone: #6b7280;
+  --tone-soft: #f9fafb;
+  --tone-border: #e5e7eb;
+}
+
+.executive-card header {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 12px;
+}
+
+.executive-card h3 {
+  margin: 0;
+  color: #111827;
+  font-size: 16px;
+  line-height: 1.25;
+}
+
+.executive-card-icon {
+  display: grid;
+  width: 48px;
+  height: 48px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 8px;
+  background: var(--tone-soft);
+  color: var(--tone);
+}
+
+.executive-card-body {
+  display: grid;
+  align-content: start;
+}
+
+.executive-metric-row {
+  display: grid;
+  min-height: 43px;
+  grid-template-columns: 24px minmax(82px, auto) minmax(0, 1fr);
+  gap: 8px 10px;
+  align-items: center;
+  border-bottom: 1px solid #e5e7eb;
+  padding: 8px 0;
+}
+
+.executive-metric-row:last-child {
+  border-bottom: 0;
+}
+
+.executive-metric-row svg {
+  color: var(--tone);
+}
+
+.executive-metric-row strong {
+  color: #111827;
+  font-size: 15px;
+}
+
+.executive-metric-row span {
+  min-width: 0;
+  color: #1f2937;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.executive-metric-row small {
+  grid-column: 3;
+  margin-top: -4px;
+  color: #6b7280;
+  font-size: 11px;
+}
+
+.executive-card footer {
+  display: grid;
+  gap: 3px;
+  border-radius: 8px;
+  background: var(--tone-soft);
+  padding: 12px;
+}
+
+.executive-card footer strong {
+  color: var(--tone);
+  font-size: 20px;
+  line-height: 1.1;
+}
+
+.executive-card footer span {
+  color: #1f2937;
+  font-size: 12px;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.overview-report-stack {
+  display: grid;
+  gap: 14px;
+}
+
 .charts-grid,
 .cards-grid,
 .export-grid {
@@ -1326,6 +1497,33 @@ tbody tr:last-child td {
   font-weight: 800;
 }
 
+.detail-filter-bar {
+  display: grid;
+  grid-template-columns: minmax(260px, 1.25fr) minmax(110px, 0.55fr) minmax(160px, 0.75fr) minmax(190px, 0.85fr) auto;
+  gap: 12px;
+  align-items: end;
+  margin-bottom: 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #f9fafb;
+  padding: 12px;
+}
+
+.detail-filter-count {
+  display: inline-flex;
+  min-height: 38px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #dbeafe;
+  border-radius: 8px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  padding: 0 12px;
+  font-size: 12px;
+  font-weight: 850;
+  white-space: nowrap;
+}
+
 .service-cell {
   display: inline-flex;
   align-items: center;
@@ -1651,6 +1849,14 @@ tbody tr:last-child td {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .detail-filter-bar {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .detail-filter-count {
+    justify-content: flex-start;
+  }
+
   .brazil-map-layout {
     grid-template-columns: 1fr;
   }
@@ -1697,6 +1903,8 @@ tbody tr:last-child td {
   .export-grid,
   .calltype-card-grid,
   .status-card-grid,
+  .overview-executive-grid,
+  .detail-filter-bar,
   .filters-grid,
   .purchase-form {
     grid-template-columns: 1fr;
