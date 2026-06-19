@@ -32,7 +32,15 @@ import BrazilUfMap from '../components/BrazilUfMap';
 import ChartCard from '../components/ChartCard';
 import DataTable from '../components/DataTable';
 import { CONSOLIDATED_MONTHS } from '../utils/consolidatedConstants';
-import { formatCurrency, formatInteger, formatPercent } from '../utils/calculations';
+import {
+  BOBBIN_CONFIGS,
+  calculateCost,
+  ceilBoxes,
+  formatCurrency,
+  formatInteger,
+  formatPercent,
+  getBobbinKey,
+} from '../utils/calculations';
 
 const BASE_OPTIONS = [
   { value: 'all', label: 'Todas' },
@@ -64,6 +72,11 @@ const EQUIPMENT_RETURN_ALIASES = [
   'Devolução equipamento',
   'Devolucao de Equipamento',
   'Devolucao equipamento',
+];
+
+const SOLICITATION_ALIASES = [
+  'Solicitação de Bobinas',
+  'Solicitacao de Bobinas',
 ];
 
 const CALL_TYPE_CARDS = [
@@ -169,7 +182,13 @@ function normalizeText(value) {
 }
 
 function knownText(value) {
-  return value && normalizeText(value) !== 'nao informado' ? value : '';
+  const normalized = normalizeText(value);
+  return normalized && !['#n/d', 'n/d', 'nao informado', '-'].includes(normalized) ? value : '';
+}
+
+function destinationKey(value) {
+  const text = knownText(value);
+  return text ? normalizeText(text).replace(/[^a-z0-9]/g, '') : '';
 }
 
 function originalValue(record, aliases) {
@@ -191,8 +210,51 @@ function uniqueCountBy(records, selector) {
   return new Set(
     records
       .map(selector)
-      .filter(knownText),
+      .map(destinationKey)
+      .filter(Boolean),
   ).size;
+}
+
+function filterSolicitationRecords(records, selectedYear, selectedMonth) {
+  return filterCallType(records, SOLICITATION_ALIASES).filter((record) => (
+    selectedMonth
+      ? record.openingMonth === selectedMonth
+      : !selectedYear || record.openingMonth?.startsWith(`${selectedYear}-`)
+  ));
+}
+
+function buildSolicitationCardSummary(records, correiosCost, enabled) {
+  if (!enabled) {
+    return {
+      requested: 0,
+      destinations: 0,
+      boxes: 0,
+      bobbinCost: 0,
+      correiosCost: 0,
+      totalCost: 0,
+    };
+  }
+
+  const totals = records.reduce((summary, record) => {
+    const type = getBobbinKey(record.bobbinType);
+    const config = BOBBIN_CONFIGS[type];
+    const quantity = Number(record.quantity) || 0;
+
+    if (config) {
+      summary.boxes += ceilBoxes(quantity, config.unitsPerBox);
+      summary.bobbinCost += calculateCost(quantity, config.unitCost);
+    }
+    return summary;
+  }, { boxes: 0, bobbinCost: 0 });
+
+  return {
+    requested: records.length,
+    destinations: uniqueCountBy(records, (record) => record.destination),
+    boxes: totals.boxes,
+    bobbinCost: totals.bobbinCost,
+    correiosCost,
+    totalCost: totals.bobbinCost + correiosCost,
+  };
 }
 
 function averageCost(records) {
@@ -670,24 +732,33 @@ export default function Overview({
     operationCost: sumRows(monthlyRows, 'operationCost'),
   };
   const difference = totals.requested - totals.sent;
+  const includeBobinasCards = hasBase(baseScope, 'bobinas');
+  const includeCorreiosCards = hasBase(baseScope, 'correios');
   const correiosRecordsForCards = hasBase(baseScope, 'correios') ? correiosAnalytics.filteredRecords : [];
-  const consolidatedRowsForCards = hasBase(baseScope, 'consolidado') ? consolidatedAnalytics.filteredRecords : [];
+  const solicitationRecordsForCards = includeBobinasCards
+    ? filterSolicitationRecords(analytics.records, selectedYear, bobinasFilters.referenceMonth)
+    : [];
+  const solicitationCorreiosSummary = summarizeCorreios(
+    filterCallType(correiosRecordsForCards, SOLICITATION_ALIASES),
+  );
+  const solicitationSummary = buildSolicitationCardSummary(
+    solicitationRecordsForCards,
+    solicitationCorreiosSummary.totalCost,
+    includeBobinasCards || includeCorreiosCards,
+  );
   const totalCorreiosSummary = summarizeCorreios(correiosRecordsForCards);
   const equipmentReturnSummary = summarizeCorreios(filterCallType(correiosRecordsForCards, EQUIPMENT_RETURN_ALIASES));
   const totalCobans = new Set([
-    ...consolidatedRowsForCards.map((row) => row.destination),
-    ...correiosRecordsForCards.map((row) => row.coban),
-  ].filter((value) => value && normalizeText(value) !== 'nao informado')).size;
-  const bobinasBoxes = sumRows(monthlyRows, 'boxes16') + sumRows(monthlyRows, 'boxes30');
-  const bobinasCorreiosCost = hasBase(baseScope, 'consolidado') ? consolidatedAnalytics.summary.correiosCost : 0;
-  const bobinasTotalCost = totals.bobbinCost + bobinasCorreiosCost;
+    ...solicitationRecordsForCards.map((row) => row.destination),
+    ...correiosRecordsForCards.map(getCorreiosDestination),
+  ].map(destinationKey).filter(Boolean)).size;
   const executiveCardsBase = [
     {
       title: 'Total Geral',
       icon: BarChart3,
       tone: 'red',
       rows: [
-        { icon: Headphones, label: 'Atendimentos/Solicita\u00e7\u00f5es', value: formatInteger(totals.requested + totalCorreiosSummary.shipments) },
+        { icon: Headphones, label: 'Atendimentos/Solicita\u00e7\u00f5es', value: formatInteger(solicitationSummary.requested + totalCorreiosSummary.shipments) },
         { icon: User, label: 'Cobans', value: formatInteger(totalCobans) },
         { icon: Truck, label: 'PAC', value: formatInteger(totalCorreiosSummary.pac), detail: `Custo m\u00e9dio ${formatCurrency(totalCorreiosSummary.pacAverage)}` },
         { icon: Truck, label: 'SEDEX', value: formatInteger(totalCorreiosSummary.sedex), detail: `Custo m\u00e9dio ${formatCurrency(totalCorreiosSummary.sedexAverage)}` },
@@ -700,15 +771,15 @@ export default function Overview({
       icon: Boxes,
       tone: 'blue',
       rows: [
-        { icon: PackageCheck, label: 'Solicita\u00e7\u00f5es', value: formatInteger(totals.requested) },
-        { icon: User, label: 'Cobans', value: formatInteger(consolidatedAnalytics.summary.destinations) },
-        { icon: Boxes, label: 'Caixas', value: formatInteger(bobinasBoxes) },
-        { icon: DollarSign, label: 'Custo Bobinas', value: formatCurrency(totals.bobbinCost) },
-        { icon: Truck, label: 'Custo Correios', value: formatCurrency(bobinasCorreiosCost) },
+        { icon: PackageCheck, label: 'Solicita\u00e7\u00f5es', value: formatInteger(solicitationSummary.requested) },
+        { icon: User, label: 'Cobans', value: formatInteger(solicitationSummary.destinations) },
+        { icon: Boxes, label: 'Caixas', value: formatInteger(solicitationSummary.boxes) },
+        { icon: DollarSign, label: 'Custo Bobinas', value: formatCurrency(solicitationSummary.bobbinCost) },
+        { icon: Truck, label: 'Custo Correios', value: formatCurrency(solicitationSummary.correiosCost) },
       ],
       footer: {
         label: 'Custo Total',
-        value: formatCurrency(bobinasTotalCost),
+        value: formatCurrency(solicitationSummary.totalCost),
       },
     },
     {
