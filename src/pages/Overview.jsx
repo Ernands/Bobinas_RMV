@@ -168,11 +168,30 @@ function normalizeText(value) {
     .toLowerCase();
 }
 
-function uniqueCount(records, field) {
+function knownText(value) {
+  return value && normalizeText(value) !== 'nao informado' ? value : '';
+}
+
+function originalValue(record, aliases) {
+  const original = record.original || {};
+  const normalizedAliases = aliases.map(normalizeText);
+  const entry = Object.entries(original).find(([key]) => normalizedAliases.includes(normalizeText(key)));
+  return entry?.[1] || '';
+}
+
+function getCorreiosDestination(record) {
+  return (
+    knownText(record.destination)
+    || knownText(record.coban)
+    || knownText(originalValue(record, ['Destino', 'Coban', 'Cliente', 'Local destino', 'Nome destino']))
+  );
+}
+
+function uniqueCountBy(records, selector) {
   return new Set(
     records
-      .map((record) => record[field])
-      .filter((value) => value && normalizeText(value) !== 'nao informado'),
+      .map(selector)
+      .filter(knownText),
   ).size;
 }
 
@@ -189,7 +208,7 @@ function summarizeCorreios(records = []) {
   return {
     records,
     shipments: records.length,
-    cobans: uniqueCount(records, 'coban'),
+    cobans: uniqueCountBy(records, getCorreiosDestination),
     pac: pacRecords.length,
     pacAverage: averageCost(pacRecords),
     sedex: sedexRecords.length,

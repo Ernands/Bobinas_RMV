@@ -14,7 +14,7 @@ const COLUMN_ALIASES = {
   unitValue: ['valor unitário', 'valor unitario'],
   discountValue: ['valor desconto', 'desconto'],
   serviceValue: ['valor serviço', 'valor servico', 'valor total'],
-  coban: ['coban'],
+  coban: ['coban', 'destino', 'cliente', 'local destino', 'nome destino'],
   loja: ['loja'],
   chamado: ['chamado', 'tipo de chamado', 'solicitação'],
 };
@@ -280,6 +280,7 @@ export function normalizeCorreiosRows(rawRows) {
     const unitValue = parseNumber(unitValueRaw);
     const discountValue = parseNumber(discountValueRaw);
     const called = splitCalled(getValue(row, columns.chamado));
+    const destination = normalizeEmptyText(getValue(row, columns.coban));
     const service = normalizeEmptyText(getValue(row, columns.service));
     const serviceClassification = classifyService(service);
     const issues = [];
@@ -327,7 +328,8 @@ export function normalizeCorreiosRows(rawRows) {
       unitValue: Number.isFinite(unitValue) ? unitValue : 0,
       discountValue: Number.isFinite(discountValue) ? discountValue : 0,
       serviceValue: Number.isFinite(serviceValue) ? serviceValue : 0,
-      coban: normalizeEmptyText(getValue(row, columns.coban)),
+      destination,
+      coban: destination,
       loja: normalizeEmptyText(getValue(row, columns.loja)),
       chamadoRaw: normalizeEmptyText(getValue(row, columns.chamado)),
       callType: called.callType,
