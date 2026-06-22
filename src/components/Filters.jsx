@@ -17,7 +17,7 @@ function SelectFilter({ label, value, options, onChange }) {
   );
 }
 
-export default function Filters({ filters, options, onChange, onReset }) {
+export default function Filters({ filters, options, onChange, onReset, referenceDateLabel = 'Mês/Ano' }) {
   const [isOpen, setIsOpen] = useState(false);
   const activeCount = useMemo(
     () => Object.entries(filters).filter(([key, value]) => Boolean(value) && !(key === 'statusMode' && value === 'all')).length,
@@ -70,7 +70,7 @@ export default function Filters({ filters, options, onChange, onReset }) {
             </select>
           </label>
           <label className="field">
-            <span>Mês/Ano</span>
+            <span>{referenceDateLabel}</span>
             <select value={filters.referenceMonth} onChange={(event) => setFilter('referenceMonth', event.target.value)}>
               <option value="">Todos</option>
               {options.months.map((month) => (

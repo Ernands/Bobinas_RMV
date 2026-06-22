@@ -14,13 +14,11 @@ import {
   BarChart3,
   Boxes,
   CircleHelp,
-  DollarSign,
   GraduationCap,
   Headphones,
   Mail,
   Megaphone,
   Monitor,
-  PackageCheck,
   PackageOpen,
   Search,
   Truck,
@@ -32,15 +30,7 @@ import BrazilUfMap from '../components/BrazilUfMap';
 import ChartCard from '../components/ChartCard';
 import DataTable from '../components/DataTable';
 import { CONSOLIDATED_MONTHS } from '../utils/consolidatedConstants';
-import {
-  BOBBIN_CONFIGS,
-  calculateCost,
-  ceilBoxes,
-  formatCurrency,
-  formatInteger,
-  formatPercent,
-  getBobbinKey,
-} from '../utils/calculations';
+import { formatCurrency, formatInteger, formatPercent } from '../utils/calculations';
 
 const BASE_OPTIONS = [
   { value: 'all', label: 'Todas' },
@@ -67,52 +57,60 @@ const OVERVIEW_UF_TOOLTIP = [
   { key: 'operationCost', label: 'Custo total operação', format: formatCurrency },
 ];
 
-const EQUIPMENT_RETURN_ALIASES = [
-  'Devolução de Equipamento',
-  'Devolução equipamento',
-  'Devolucao de Equipamento',
-  'Devolucao equipamento',
-];
-
-const SOLICITATION_ALIASES = [
-  'Solicitação de Bobinas',
-  'Solicitacao de Bobinas',
-];
-
 const CALL_TYPE_CARDS = [
   {
+    id: 'solicitation',
+    title: 'Solicitação de Bobinas',
+    aliases: ['Solicitação de Bobinas', 'Solicitacao de Bobinas'],
+    icon: Boxes,
+    tone: 'blue',
+  },
+  {
+    id: 'equipment-return',
+    title: 'Devolução de Equipamento',
+    aliases: ['Devolução de Equipamento', 'Devolução equipamento', 'Devolucao de Equipamento', 'Devolucao equipamento'],
+    icon: PackageOpen,
+    tone: 'orange',
+  },
+  {
+    id: 'technical-problem',
     title: 'Problema Técnico - Equipamento / Conexão',
     aliases: ['Problema Técnico - Equipamento / Conexão', 'Problema Tecnico - Equipamento / Conexao'],
     icon: Wrench,
     tone: 'blue',
   },
   {
+    id: 'training',
     title: 'Treinamento - Instalação',
     aliases: ['Treinamento - Instalação', 'Treinamento - Instalacao'],
     icon: GraduationCap,
     tone: 'green',
   },
   {
+    id: 'marketing-material',
     title: 'Material de Divulgação e Sinalização',
     aliases: ['Material de Divulgação e Sinalização', 'Material de Divulgacao e Sinalizacao'],
     icon: Megaphone,
     tone: 'purple',
   },
   {
+    id: 'additional-equipment',
     title: 'Equipamento ou Periférico Adicional',
     aliases: ['Equipamento ou Periférico Adicional', 'Equipamento ou Periferico Adicional'],
     icon: Monitor,
     tone: 'teal',
   },
   {
+    id: 'upgrade',
     title: 'Substituição Upgrade',
     aliases: ['Substituição Upgrade', 'Substituicao Upgrade'],
     icon: PackageOpen,
     tone: 'yellow',
   },
   {
+    id: 'unknown',
     title: 'Não informado',
-    aliases: ['Não informado', 'Nao informado'],
+    aliases: [],
     icon: CircleHelp,
     tone: 'gray',
   },
@@ -215,82 +213,108 @@ function uniqueCountBy(records, selector) {
   ).size;
 }
 
-function filterSolicitationRecords(records, selectedYear, selectedMonth) {
-  return filterCallType(records, SOLICITATION_ALIASES).filter((record) => (
-    selectedMonth
-      ? record.openingMonth === selectedMonth
-      : !selectedYear || record.openingMonth?.startsWith(`${selectedYear}-`)
-  ));
-}
-
-function buildSolicitationCardSummary(records, correiosCost, enabled) {
-  if (!enabled) {
-    return {
-      requested: 0,
-      destinations: 0,
-      boxes: 0,
-      bobbinCost: 0,
-      correiosCost: 0,
-      totalCost: 0,
-    };
-  }
-
-  const totals = records.reduce((summary, record) => {
-    const type = getBobbinKey(record.bobbinType);
-    const config = BOBBIN_CONFIGS[type];
-    const quantity = Number(record.quantity) || 0;
-
-    if (config) {
-      summary.boxes += ceilBoxes(quantity, config.unitsPerBox);
-      summary.bobbinCost += calculateCost(quantity, config.unitCost);
-    }
-    return summary;
-  }, { boxes: 0, bobbinCost: 0 });
-
-  return {
-    requested: records.length,
-    destinations: uniqueCountBy(records, (record) => record.destination),
-    boxes: totals.boxes,
-    bobbinCost: totals.bobbinCost,
-    correiosCost,
-    totalCost: totals.bobbinCost + correiosCost,
-  };
-}
-
-function averageCost(records) {
-  const total = records.reduce((sum, record) => sum + (record.serviceValue || 0), 0);
-  return records.length ? total / records.length : 0;
+function sumServiceValue(records) {
+  return records.reduce((sum, record) => sum + (Number(record.serviceValue) || 0), 0);
 }
 
 function summarizeCorreios(records = []) {
   const pacRecords = records.filter((record) => record.isPac);
   const sedexRecords = records.filter((record) => record.isSedex);
-  const totalCost = records.reduce((sum, record) => sum + (record.serviceValue || 0), 0);
+  const reverseRecords = records.filter((record) => record.isReverse);
+  const totalCost = sumServiceValue(records);
+  const pacCost = sumServiceValue(pacRecords);
+  const sedexCost = sumServiceValue(sedexRecords);
+  const reverseCost = sumServiceValue(reverseRecords);
 
   return {
     records,
     shipments: records.length,
     cobans: uniqueCountBy(records, getCorreiosDestination),
     pac: pacRecords.length,
-    pacAverage: averageCost(pacRecords),
+    pacCost,
+    pacAverage: pacRecords.length ? pacCost / pacRecords.length : 0,
     sedex: sedexRecords.length,
-    sedexAverage: averageCost(sedexRecords),
+    sedexCost,
+    sedexAverage: sedexRecords.length ? sedexCost / sedexRecords.length : 0,
+    reversos: reverseRecords.length,
+    reverseCost,
+    reverseAverage: reverseRecords.length ? reverseCost / reverseRecords.length : 0,
+    totalWeight: records.reduce((sum, record) => sum + (Number(record.weightKg) || 0), 0),
     average: records.length ? totalCost / records.length : 0,
     totalCost,
   };
 }
 
-function filterCallType(records, aliases) {
-  const normalizedAliases = aliases.map(normalizeText);
-  return records.filter((record) => {
+function buildCorreiosCardSummaries(records) {
+  const groups = new Map(CALL_TYPE_CARDS.map((card) => [card.id, []]));
+  const unknownCard = CALL_TYPE_CARDS.find((card) => card.id === 'unknown');
+
+  records.forEach((record) => {
     const callType = normalizeText(record.callType);
-    return normalizedAliases.some((alias) => callType === alias || callType.includes(alias));
+    const card = CALL_TYPE_CARDS.find((item) => (
+      item.id !== 'unknown'
+      && item.aliases.some((alias) => callType === normalizeText(alias))
+    )) || unknownCard;
+    groups.get(card.id).push(record);
   });
+
+  const cards = CALL_TYPE_CARDS.map((card) => ({
+    ...card,
+    summary: summarizeCorreios(groups.get(card.id)),
+  }));
+  const total = cards.reduce((summary, card) => {
+    summary.shipments += card.summary.shipments;
+    summary.totalCost += card.summary.totalCost;
+    summary.totalWeight += card.summary.totalWeight;
+    summary.pac += card.summary.pac;
+    summary.pacCost += card.summary.pacCost;
+    summary.sedex += card.summary.sedex;
+    summary.sedexCost += card.summary.sedexCost;
+    summary.reversos += card.summary.reversos;
+    summary.reverseCost += card.summary.reverseCost;
+    return summary;
+  }, {
+    records,
+    shipments: 0,
+    cobans: uniqueCountBy(records, getCorreiosDestination),
+    totalCost: 0,
+    totalWeight: 0,
+    pac: 0,
+    pacCost: 0,
+    sedex: 0,
+    sedexCost: 0,
+    reversos: 0,
+    reverseCost: 0,
+  });
+
+  total.average = total.shipments ? total.totalCost / total.shipments : 0;
+  total.pacAverage = total.pac ? total.pacCost / total.pac : 0;
+  total.sedexAverage = total.sedex ? total.sedexCost / total.sedex : 0;
+  total.reverseAverage = total.reversos ? total.reverseCost / total.reversos : 0;
+
+  validateCorreiosCardTotals(summarizeCorreios(records), total);
+  return { cards, total };
+}
+
+function validateCorreiosCardTotals(sourceTotal, cardsTotal) {
+  const integerFields = ['shipments', 'pac', 'sedex', 'reversos'];
+  const decimalFields = ['totalCost', 'totalWeight'];
+  const inconsistent = (
+    integerFields.some((field) => sourceTotal[field] !== cardsTotal[field])
+    || decimalFields.some((field) => Math.abs(sourceTotal[field] - cardsTotal[field]) > 0.01)
+  );
+
+  if (import.meta.env.DEV && inconsistent) {
+    console.warn(
+      'Inconsistência nos cards: Total Geral não bate com a soma dos tipos de chamado.',
+      { cardsTotal, sourceTotal },
+    );
+  }
 }
 
 function buildCorreiosRows(summary) {
   return [
-    { icon: Headphones, label: 'Atendimentos', value: formatInteger(summary.shipments) },
+    { icon: Headphones, label: 'Atendimentos/Solicitações', value: formatInteger(summary.shipments) },
     { icon: User, label: 'Cobans', value: formatInteger(summary.cobans) },
     { icon: Truck, label: 'PAC', value: formatInteger(summary.pac), detail: `Custo m\u00e9dio ${formatCurrency(summary.pacAverage)}` },
     { icon: Truck, label: 'SEDEX', value: formatInteger(summary.sedex), detail: `Custo m\u00e9dio ${formatCurrency(summary.sedexAverage)}` },
@@ -462,6 +486,7 @@ function OverviewFilters({
   bobinasFilters,
   consolidatedFilters,
   correiosFilters,
+  correiosOptions = {},
   onBaseScopeChange,
   onBobinasFiltersChange,
   onConsolidatedFiltersChange,
@@ -518,6 +543,10 @@ function OverviewFilters({
   function setCallType(callType) {
     onBobinasFiltersChange({ ...bobinasFilters, callType });
     onCorreiosFiltersChange({ ...correiosFilters, callType });
+  }
+
+  function setCorreiosFilter(key, value) {
+    onCorreiosFiltersChange({ ...correiosFilters, [key]: value });
   }
 
   return (
@@ -580,6 +609,33 @@ function OverviewFilters({
             <option value="">Todos</option>
             {options.callTypes.map((callType) => (
               <option key={callType} value={callType}>{callType}</option>
+            ))}
+          </select>
+        </label>
+        <label className="field">
+          <span>Serviço</span>
+          <select value={correiosFilters.service} onChange={(event) => setCorreiosFilter('service', event.target.value)}>
+            <option value="">Todos</option>
+            {(correiosOptions.services || []).map((service) => (
+              <option key={service} value={service}>{service}</option>
+            ))}
+          </select>
+        </label>
+        <label className="field">
+          <span>Coban</span>
+          <select value={correiosFilters.coban} onChange={(event) => setCorreiosFilter('coban', event.target.value)}>
+            <option value="">Todos</option>
+            {(correiosOptions.cobans || []).map((coban) => (
+              <option key={coban} value={coban}>{coban}</option>
+            ))}
+          </select>
+        </label>
+        <label className="field">
+          <span>Loja</span>
+          <select value={correiosFilters.loja} onChange={(event) => setCorreiosFilter('loja', event.target.value)}>
+            <option value="">Todas</option>
+            {(correiosOptions.lojas || []).map((loja) => (
+              <option key={loja} value={loja}>{loja}</option>
             ))}
           </select>
         </label>
@@ -732,68 +788,28 @@ export default function Overview({
     operationCost: sumRows(monthlyRows, 'operationCost'),
   };
   const difference = totals.requested - totals.sent;
-  const includeBobinasCards = hasBase(baseScope, 'bobinas');
-  const includeCorreiosCards = hasBase(baseScope, 'correios');
-  const correiosRecordsForCards = hasBase(baseScope, 'correios') ? correiosAnalytics.filteredRecords : [];
-  const solicitationRecordsForCards = includeBobinasCards
-    ? filterSolicitationRecords(analytics.records, selectedYear, bobinasFilters.referenceMonth)
-    : [];
-  const solicitationCorreiosSummary = summarizeCorreios(
-    filterCallType(correiosRecordsForCards, SOLICITATION_ALIASES),
+  const correiosCardData = useMemo(
+    () => buildCorreiosCardSummaries(correiosAnalytics.filteredRecords),
+    [correiosAnalytics.filteredRecords],
   );
-  const solicitationSummary = buildSolicitationCardSummary(
-    solicitationRecordsForCards,
-    solicitationCorreiosSummary.totalCost,
-    includeBobinasCards || includeCorreiosCards,
+  const totalOperationCost = (
+    sumRows(analytics.monthlyDemand, 'totalCost')
+    + correiosCardData.total.totalCost
   );
-  const totalCorreiosSummary = summarizeCorreios(correiosRecordsForCards);
-  const equipmentReturnSummary = summarizeCorreios(filterCallType(correiosRecordsForCards, EQUIPMENT_RETURN_ALIASES));
-  const totalCobans = new Set([
-    ...solicitationRecordsForCards.map((row) => row.destination),
-    ...correiosRecordsForCards.map(getCorreiosDestination),
-  ].map(destinationKey).filter(Boolean)).size;
-  const executiveCardsBase = [
+  const executiveCards = [
     {
       title: 'Total Geral',
       icon: BarChart3,
       tone: 'red',
-      rows: [
-        { icon: Headphones, label: 'Atendimentos/Solicita\u00e7\u00f5es', value: formatInteger(solicitationSummary.requested + totalCorreiosSummary.shipments) },
-        { icon: User, label: 'Cobans', value: formatInteger(totalCobans) },
-        { icon: Truck, label: 'PAC', value: formatInteger(totalCorreiosSummary.pac), detail: `Custo m\u00e9dio ${formatCurrency(totalCorreiosSummary.pacAverage)}` },
-        { icon: Truck, label: 'SEDEX', value: formatInteger(totalCorreiosSummary.sedex), detail: `Custo m\u00e9dio ${formatCurrency(totalCorreiosSummary.sedexAverage)}` },
-        { icon: BarChart3, label: 'Custo m\u00e9dio geral', value: formatCurrency(totalCorreiosSummary.average) },
-        { icon: Mail, label: 'Custo Correios', value: formatCurrency(totalCorreiosSummary.totalCost) },
-      ],
-    },
-    {
-      title: 'Solicita\u00e7\u00e3o Bobinas',
-      icon: Boxes,
-      tone: 'blue',
-      rows: [
-        { icon: PackageCheck, label: 'Solicita\u00e7\u00f5es', value: formatInteger(solicitationSummary.requested) },
-        { icon: User, label: 'Cobans', value: formatInteger(solicitationSummary.destinations) },
-        { icon: Boxes, label: 'Caixas', value: formatInteger(solicitationSummary.boxes) },
-        { icon: DollarSign, label: 'Custo Bobinas', value: formatCurrency(solicitationSummary.bobbinCost) },
-        { icon: Truck, label: 'Custo Correios', value: formatCurrency(solicitationSummary.correiosCost) },
-      ],
+      rows: buildCorreiosRows(correiosCardData.total),
       footer: {
-        label: 'Custo Total',
-        value: formatCurrency(solicitationSummary.totalCost),
+        label: 'Custo total (Correios + Bobinas)',
+        value: formatCurrency(totalOperationCost),
       },
     },
-    {
-      title: 'Devolu\u00e7\u00e3o de Equipamento',
-      icon: PackageOpen,
-      tone: 'orange',
-      rows: buildCorreiosRows(equipmentReturnSummary),
-    },
-  ];
-  const executiveCards = [
-    ...executiveCardsBase,
-    ...CALL_TYPE_CARDS.map((card) => ({
+    ...correiosCardData.cards.map((card) => ({
       ...card,
-      rows: buildCorreiosRows(summarizeCorreios(filterCallType(correiosRecordsForCards, card.aliases))),
+      rows: buildCorreiosRows(card.summary),
     })),
   ];
   const topCallType = correiosAnalytics.summary.topCallType;
@@ -834,6 +850,7 @@ export default function Overview({
         bobinasFilters={bobinasFilters}
         consolidatedFilters={consolidatedFilters}
         correiosFilters={correiosFilters}
+        correiosOptions={correiosAnalytics.options}
         onBaseScopeChange={setBaseScope}
         onBobinasFiltersChange={onBobinasFiltersChange}
         onConsolidatedFiltersChange={onConsolidatedFiltersChange}

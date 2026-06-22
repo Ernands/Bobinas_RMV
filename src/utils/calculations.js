@@ -216,12 +216,13 @@ function finalizeMonthlyDemand(row) {
   };
 }
 
-export function applyFilters(records, filters) {
+export function applyFilters(records, filters, referenceDateField = 'openingMonth') {
   return records.filter((record) => {
     const status = normalizeStatus(record.status);
+    const referenceMonth = record[referenceDateField];
     if (
       filters.referenceYear
-      && ![record.openingMonth, record.exitMonth].some((monthKey) => monthKey?.startsWith(`${filters.referenceYear}-`))
+      && !referenceMonth?.startsWith(`${filters.referenceYear}-`)
     ) {
       return false;
     }
@@ -231,11 +232,7 @@ export function applyFilters(records, filters) {
     if (filters.statusMode === 'pending' && status !== 'pendente') {
       return false;
     }
-    if (
-      filters.referenceMonth
-      && record.openingMonth !== filters.referenceMonth
-      && record.exitMonth !== filters.referenceMonth
-    ) {
+    if (filters.referenceMonth && referenceMonth !== filters.referenceMonth) {
       return false;
     }
     if (filters.openingFrom && (!record.openingMonth || record.openingMonth < filters.openingFrom)) {
@@ -330,7 +327,7 @@ export function buildMonthlyShipping(records) {
   });
 }
 
-function buildOpeningShippingComparison(records) {
+function buildOpeningShippingComparison(records, referenceMonth = '') {
   const months = new Map();
   const nextMonthShipmentsByOpening = new Map();
 
@@ -377,6 +374,7 @@ function buildOpeningShippingComparison(records) {
   });
 
   return Array.from(months.values())
+    .filter((row) => !referenceMonth || row.monthKey === referenceMonth)
     .sort((a, b) => a.monthKey.localeCompare(b.monthKey))
     .map((row) => {
       const difference = row.requestedUnits - row.shippedUnits;
@@ -434,7 +432,7 @@ function buildSummary(records) {
   };
 }
 
-function buildDelayAnalysis(records) {
+function buildDelayAnalysis(records, referenceDateField = 'openingMonth') {
   const validRecords = records.filter((record) => Number.isFinite(record.delayDays) && record.delayDays >= 0);
   const delays = validRecords.map((record) => record.delayDays);
   const distribution = [
@@ -457,10 +455,11 @@ function buildDelayAnalysis(records) {
   const typeMap = new Map();
 
   validRecords.forEach((record) => {
-    if (record.openingMonth) {
-      const list = monthlyMap.get(record.openingMonth) || [];
+    const referenceMonth = record[referenceDateField];
+    if (referenceMonth) {
+      const list = monthlyMap.get(referenceMonth) || [];
       list.push(record.delayDays);
-      monthlyMap.set(record.openingMonth, list);
+      monthlyMap.set(referenceMonth, list);
     }
 
     const type = record.bobbinType || 'Não informado';
@@ -881,11 +880,15 @@ function buildAlerts(monthlyDemand, delay, coverage, largeOrders, partialMonth) 
   return alerts;
 }
 
-export function buildAnalytics(records, purchases = [], includePartialMonth = false) {
+export function buildAnalytics(records, purchases = [], includePartialMonth = false, options = {}) {
+  const {
+    referenceDateField = 'openingMonth',
+    referenceMonth = '',
+  } = options;
   const monthlyDemand = buildMonthlyDemand(records);
   const monthlyShipping = buildMonthlyShipping(records);
   const partialMonth = detectPartialMonth(records);
-  const delay = buildDelayAnalysis(records);
+  const delay = buildDelayAnalysis(records, referenceDateField);
   const largeOrders = buildLargeOrders(records);
   const enrichedPurchases = enrichPurchases(purchases);
   const coverage = buildCoverage(enrichedPurchases, monthlyDemand, partialMonth);
@@ -895,7 +898,7 @@ export function buildAnalytics(records, purchases = [], includePartialMonth = fa
     summary: buildSummary(records),
     monthlyDemand,
     monthlyShipping,
-    comparison: buildOpeningShippingComparison(records),
+    comparison: buildOpeningShippingComparison(records, referenceMonth),
     delay,
     partialMonth,
     bobbin16: buildBobbinAnalysis(records, '16', partialMonth, includePartialMonth),

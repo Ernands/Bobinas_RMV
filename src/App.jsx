@@ -13,7 +13,6 @@ import Coverage from './pages/Coverage';
 import Destinations from './pages/Destinations';
 import Exports from './pages/Exports';
 import Correios from './pages/Correios';
-import ExecutiveSummary from './pages/ExecutiveSummary';
 import PurchaseForecast from './pages/PurchaseForecast';
 import CriticalPoints from './pages/CriticalPoints';
 import { DATASET_CONFIGS, getDatasetConfig } from './config/datasets';
@@ -70,15 +69,17 @@ function uniqueOptions(records, field) {
   ).sort((a, b) => a.localeCompare(b, 'pt-BR'));
 }
 
-function uniqueMonthOptions(records) {
+function uniqueMonthOptions(records, referenceDateField = '') {
   const months = new Set();
   records.forEach((record) => {
-    if (record.openingMonth) {
-      months.add(record.openingMonth);
-    }
-    if (record.exitMonth) {
-      months.add(record.exitMonth);
-    }
+    const monthKeys = referenceDateField
+      ? [record[referenceDateField]]
+      : [record.openingMonth, record.exitMonth];
+    monthKeys.forEach((monthKey) => {
+      if (monthKey) {
+        months.add(monthKey);
+      }
+    });
   });
 
   return Array.from(months)
@@ -89,15 +90,17 @@ function uniqueMonthOptions(records) {
     }));
 }
 
-function uniqueYearOptions(records) {
+function uniqueYearOptions(records, referenceDateField = '') {
   const years = new Set();
   records.forEach((record) => {
-    if (record.openingMonth) {
-      years.add(record.openingMonth.slice(0, 4));
-    }
-    if (record.exitMonth) {
-      years.add(record.exitMonth.slice(0, 4));
-    }
+    const monthKeys = referenceDateField
+      ? [record[referenceDateField]]
+      : [record.openingMonth, record.exitMonth];
+    monthKeys.forEach((monthKey) => {
+      if (monthKey) {
+        years.add(monthKey.slice(0, 4));
+      }
+    });
   });
 
   return Array.from(years).sort((a, b) => b.localeCompare(a));
@@ -329,14 +332,19 @@ export default function App() {
     ));
   }, [records]);
 
+  const bobinasReferenceDateField = activeTab === 'shipping' ? 'exitMonth' : 'openingMonth';
+
   const filteredRecords = useMemo(
-    () => applyFilters(records, filters),
-    [records, filters],
+    () => applyFilters(records, filters, bobinasReferenceDateField),
+    [records, filters, bobinasReferenceDateField],
   );
 
   const analytics = useMemo(
-    () => buildAnalytics(filteredRecords, rawPurchases, includePartialMonth),
-    [filteredRecords, rawPurchases, includePartialMonth],
+    () => buildAnalytics(filteredRecords, rawPurchases, includePartialMonth, {
+      referenceDateField: bobinasReferenceDateField,
+      referenceMonth: filters.referenceMonth,
+    }),
+    [filteredRecords, rawPurchases, includePartialMonth, bobinasReferenceDateField, filters.referenceMonth],
   );
 
   const correiosAnalytics = useMemo(
@@ -360,15 +368,15 @@ export default function App() {
   );
 
   const options = useMemo(() => ({
-    years: uniqueYearOptions(records),
-    months: uniqueMonthOptions(records),
+    years: uniqueYearOptions(records, bobinasReferenceDateField),
+    months: uniqueMonthOptions(records, bobinasReferenceDateField),
     bobbinTypes: uniqueOptions(records, 'bobbinType'),
     ufs: uniqueOptions(records, 'uf'),
     destinations: uniqueOptions(records, 'destination'),
     statuses: uniqueOptions(records, 'status'),
     shippingMethods: uniqueOptions(records, 'shippingMethod'),
     callTypes: uniqueOptions(records, 'callType'),
-  }), [records]);
+  }), [records, bobinasReferenceDateField]);
 
   const overviewOptions = useMemo(() => ({
     years: Array.from(new Set([
@@ -526,6 +534,7 @@ export default function App() {
             options={options}
             onChange={setFilters}
             onReset={() => setFilters(EMPTY_FILTERS)}
+            referenceDateLabel={activeTab === 'shipping' ? 'Mês/Ano (saída)' : 'Mês/Ano (abertura)'}
           />
         ) : null}
 
@@ -545,14 +554,6 @@ export default function App() {
               onConsolidatedFiltersChange={setConsolidatedFilters}
               onCorreiosFiltersChange={setCorreiosFilters}
               overviewOptions={overviewOptions}
-            />
-          ) : null}
-          {activeTab === 'executive' ? (
-            <ExecutiveSummary
-              bobinasAnalytics={analytics}
-              correiosAnalytics={correiosAnalytics}
-              hasBobinasData={filteredRecords.length > 0}
-              hasCorreiosData={correiosRecords.length > 0}
             />
           ) : null}
           {activeTab === 'monthly' ? <MonthlyDemand {...pageProps} /> : null}
