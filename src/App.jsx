@@ -393,6 +393,7 @@ export default function App() {
       ...options.callTypes,
       ...correiosAnalytics.options.callTypes,
     ].filter(Boolean))).sort((a, b) => a.localeCompare(b, 'pt-BR')),
+    destinations: options.destinations,
   }), [options, correiosAnalytics.options, consolidatedAnalytics.options]);
 
   function handleDatasetLoading(datasetIds) {

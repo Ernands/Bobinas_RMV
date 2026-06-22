@@ -547,6 +547,16 @@ function OverviewFilters({
 
   function setCorreiosFilter(key, value) {
     onCorreiosFiltersChange({ ...correiosFilters, [key]: value });
+    if (key === 'coban') {
+      const selectedKey = destinationKey(value);
+      const matchingDestination = selectedKey
+        ? options.destinations.find((destination) => destinationKey(destination) === selectedKey)
+        : '';
+      onBobinasFiltersChange({
+        ...bobinasFilters,
+        destination: matchingDestination || (value ? `__coban_sem_destino__${selectedKey}` : ''),
+      });
+    }
   }
 
   return (
