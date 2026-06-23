@@ -712,7 +712,28 @@ function buildLargeOrders(records) {
 }
 
 export function enrichPurchases(purchases) {
-  return purchases
+  const expandedPurchases = purchases.flatMap((purchase) => {
+    if (purchase.boxes16 === undefined && purchase.boxes30 === undefined) {
+      return [purchase];
+    }
+
+    return [
+      {
+        ...purchase,
+        id: `${purchase.id}-16`,
+        type: BOBBIN_CONFIGS['16'].label,
+        boxes: Number(purchase.boxes16) || 0,
+      },
+      {
+        ...purchase,
+        id: `${purchase.id}-30`,
+        type: BOBBIN_CONFIGS['30'].label,
+        boxes: Number(purchase.boxes30) || 0,
+      },
+    ];
+  });
+
+  return expandedPurchases
     .filter((purchase) => purchase.month && Number(purchase.boxes) > 0)
     .map((purchase) => {
       const config = getBobbinConfig(purchase.type);

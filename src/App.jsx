@@ -486,6 +486,12 @@ export default function App() {
 
   function savePurchase(purchase) {
     setRawPurchases((current) => {
+      if (purchase.monthly) {
+        return [
+          ...current.filter((item) => item.month !== purchase.month),
+          purchase,
+        ];
+      }
       const exists = current.some((item) => item.id === purchase.id);
       return exists
         ? current.map((item) => (item.id === purchase.id ? purchase : item))
@@ -494,7 +500,8 @@ export default function App() {
   }
 
   function deletePurchase(id) {
-    setRawPurchases((current) => current.filter((item) => item.id !== id));
+    const ids = Array.isArray(id) ? id : [id];
+    setRawPurchases((current) => current.filter((item) => !ids.includes(item.id)));
   }
 
   const pageProps = {
@@ -563,7 +570,8 @@ export default function App() {
           {activeTab === 'bobbin30' ? <Bobbin30 {...pageProps} /> : null}
           {activeTab === 'purchases' ? (
             <Purchases
-              purchases={analytics.purchases}
+              datasetState={datasets.bobinas}
+              records={records}
               rawPurchases={rawPurchases}
               onDelete={deletePurchase}
               onReplace={setRawPurchases}

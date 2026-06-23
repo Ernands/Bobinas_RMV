@@ -66,9 +66,9 @@ export const NAV_GROUPS = [
       },
       {
         id: 'purchases',
-        label: 'Compras Planejadas',
+        label: 'Planejamento de Compras',
         icon: PackageOpen,
-        subtitle: 'Planejamento de compras de bobinas',
+        subtitle: 'Planejamento mensal de reposição, consumo atual e saldo operacional',
       },
       {
         id: 'coverage',
