@@ -6,35 +6,100 @@ import { formatCurrency, formatDecimal, formatInteger } from '../utils/calculati
 const UNKNOWN_UF = 'UF não identificada';
 
 const DEFAULT_METRICS = [
-  { key: 'totalCost', label: 'Valor total', format: formatCurrency },
-  { key: 'shipments', label: 'Quantidade de envios', format: formatInteger },
+  { key: 'shipments', label: 'Quantidade de postagens', format: formatInteger },
+  { key: 'correiosCost', label: 'Custo Correios', format: formatCurrency },
+  { key: 'bobbinCost', label: 'Custo Bobinas', format: formatCurrency },
+  { key: 'totalCost', label: 'Custo total', format: formatCurrency },
+];
+
+const DEFAULT_TOOLTIP_FIELDS = [
+  { key: 'shipments', label: 'Postagens', format: formatInteger },
+  { key: 'correiosCost', label: 'Custo Correios', format: formatCurrency },
+  { key: 'bobbinCost', label: 'Custo Bobinas', format: formatCurrency },
+  { key: 'totalCost', label: 'Custo total', format: formatCurrency },
   { key: 'averageCost', label: 'Custo médio', format: formatCurrency },
   { key: 'totalWeight', label: 'Peso total', format: (value) => `${formatDecimal(value)} kg` },
-  { key: 'pac', label: 'Quantidade PAC', format: formatInteger },
-  { key: 'sedex', label: 'Quantidade SEDEX', format: formatInteger },
-  { key: 'reversos', label: 'Quantidade Reversos', format: formatInteger },
+  { key: 'pac', label: 'PAC', format: formatInteger },
+  { key: 'sedex', label: 'SEDEX', format: formatInteger },
+  { key: 'reversos', label: 'Reversos', format: formatInteger },
 ];
 
 const COLOR_SCALE = ['#DBEAFE', '#93C5FD', '#60A5FA', '#2563EB', '#1D4ED8'];
 const EMPTY_COLOR = '#F3F4F6';
+
+function safeNumber(value) {
+  return Number.isFinite(Number(value)) ? Number(value) : 0;
+}
 
 function emptyUfRow(uf, stateName = uf) {
   return {
     id: uf,
     name: uf,
     stateName,
+    destinations: 0,
     shipments: 0,
+    correiosCost: 0,
+    bobbinCost: 0,
     totalCost: 0,
     averageCost: 0,
     totalWeight: 0,
     pac: 0,
+    pacCost: 0,
+    pacAverage: 0,
     sedex: 0,
+    sedexCost: 0,
+    sedexAverage: 0,
     reversos: 0,
+    reverseCost: 0,
+    reverseAverage: 0,
+    boxes: 0,
+  };
+}
+
+function normalizeMapRow(source, uf, stateName = uf) {
+  const row = {
+    ...emptyUfRow(uf, stateName),
+    ...(source || {}),
+    name: uf,
+    stateName,
+  };
+  const sourceTotal = safeNumber(source?.totalCost);
+  const correiosCost = safeNumber(row.correiosCost) || (!safeNumber(row.bobbinCost) ? sourceTotal : 0);
+  const bobbinCost = safeNumber(row.bobbinCost);
+  const totalCost = safeNumber(row.totalCost) || correiosCost + bobbinCost;
+  const shipments = safeNumber(row.shipments);
+  const pac = safeNumber(row.pac);
+  const sedex = safeNumber(row.sedex);
+  const reversos = safeNumber(row.reversos);
+  const pacCost = safeNumber(row.pacCost);
+  const sedexCost = safeNumber(row.sedexCost);
+  const reverseCost = safeNumber(row.reverseCost);
+
+  return {
+    ...row,
+    destinations: safeNumber(row.destinations),
+    shipments,
+    correiosCost,
+    bobbinCost,
+    totalCost,
+    operationCost: totalCost,
+    averageCost: shipments ? totalCost / shipments : safeNumber(row.averageCost),
+    totalWeight: safeNumber(row.totalWeight),
+    pac,
+    pacCost,
+    pacAverage: pac ? pacCost / pac : safeNumber(row.pacAverage),
+    sedex,
+    sedexCost,
+    sedexAverage: sedex ? sedexCost / sedex : safeNumber(row.sedexAverage),
+    reversos,
+    reverseCost,
+    reverseAverage: reversos ? reverseCost / reversos : safeNumber(row.reverseAverage),
+    boxes: safeNumber(row.boxes),
   };
 }
 
 function metricValue(row, metric) {
-  return Number(row?.[metric] || 0);
+  return safeNumber(row?.[metric]);
 }
 
 function colorForValue(value, maxValue) {
@@ -49,79 +114,122 @@ function colorForValue(value, maxValue) {
   return COLOR_SCALE[index];
 }
 
-function defaultTooltipLines(row) {
+function hasOperationalData(row) {
+  return Boolean(
+    row.shipments
+    || row.correiosCost
+    || row.bobbinCost
+    || row.totalCost
+    || row.destinations
+    || row.boxes,
+  );
+}
+
+function sortUfRows(rows, metric) {
+  return [...rows].sort((a, b) => (
+    metricValue(b, metric) - metricValue(a, metric)
+    || b.shipments - a.shipments
+    || b.totalCost - a.totalCost
+    || a.name.localeCompare(b.name, 'pt-BR')
+  ));
+}
+
+function buildTooltipLines(row, fields) {
   return [
     `${row.stateName || row.name} (${row.name})`,
-    `Valor total: ${formatCurrency(row.totalCost)}`,
-    `Quantidade de envios: ${formatInteger(row.shipments)}`,
-    `Custo médio: ${formatCurrency(row.averageCost)}`,
-    `Peso total: ${formatDecimal(row.totalWeight)} kg`,
-    `PAC: ${formatInteger(row.pac)}`,
-    `SEDEX: ${formatInteger(row.sedex)}`,
-    `Reversos: ${formatInteger(row.reversos)}`,
+    ...fields.map((field) => `${field.label}: ${field.format(row[field.key] || 0)}`),
   ];
 }
 
-function RankingList({ metric, onUfClick, rows, title }) {
-  const metricConfig = DEFAULT_METRICS.find((item) => item.key === metric) || DEFAULT_METRICS[0];
-
+function UfSidebarRow({ isSelected, onClick, row }) {
   return (
-    <div className="uf-ranking-list">
-      <h4>{title}</h4>
-      {rows.length ? rows.map((row, index) => (
-        <button key={`${title}-${row.name}`} type="button" onClick={() => onUfClick(row.name)}>
-          <span className="uf-ranking-index">{index + 1}</span>
-          <strong>{row.name}</strong>
-          <span>{metricConfig.format(metricValue(row, metric))}</span>
-        </button>
-      )) : (
-        <p>Nenhuma UF com dados no recorte.</p>
-      )}
-    </div>
+    <button className={`uf-ranking-row${isSelected ? ' selected' : ''}`} type="button" onClick={onClick}>
+      <strong>{row.name}</strong>
+      <span>{formatInteger(row.shipments)} postagens</span>
+      <span>Correios {formatCurrency(row.correiosCost)}</span>
+      <span>Bobinas {formatCurrency(row.bobbinCost)}</span>
+      <b>Total {formatCurrency(row.totalCost)}</b>
+    </button>
+  );
+}
+
+function UfHorizontalSummary({ isSelected, onClick, row }) {
+  return (
+    <button className={`uf-summary-card${isSelected ? ' selected' : ''}`} type="button" onClick={onClick}>
+      <strong>{row.name}</strong>
+      <span>{row.stateName}</span>
+      <dl>
+        <div>
+          <dt>Destinos únicos</dt>
+          <dd>{formatInteger(row.destinations)}</dd>
+        </div>
+        <div>
+          <dt>PAC</dt>
+          <dd>{formatInteger(row.pac)}</dd>
+          <small>{formatCurrency(row.pacAverage)}</small>
+        </div>
+        <div>
+          <dt>SEDEX</dt>
+          <dd>{formatInteger(row.sedex)}</dd>
+          <small>{formatCurrency(row.sedexAverage)}</small>
+        </div>
+        <div>
+          <dt>Reverso</dt>
+          <dd>{formatInteger(row.reversos)}</dd>
+          <small>{formatCurrency(row.reverseAverage)}</small>
+        </div>
+        <div>
+          <dt>Caixas</dt>
+          <dd>{formatInteger(row.boxes)}</dd>
+          <small>bobinas</small>
+        </div>
+      </dl>
+    </button>
   );
 }
 
 export default function BrazilUfMap({
-  metric = 'totalCost',
+  categoryFilter = '',
+  categoryLabel = 'Atendimento',
+  categoryOptions = [],
+  metric = 'shipments',
   metrics = DEFAULT_METRICS,
+  onCategoryFilterChange,
   onMetricChange,
-  onUfClick,
+  onUfClick = () => {},
   rows,
   selectedUf,
-  tooltipFields,
+  subtitle = 'Mapa coroplético do Brasil por estado, respeitando os filtros ativos.',
+  title = 'Distribuição por UF',
+  tooltipFields = DEFAULT_TOOLTIP_FIELDS,
 }) {
   const [tooltip, setTooltip] = useState(null);
   const metricConfig = metrics.find((item) => item.key === metric) || metrics[0] || DEFAULT_METRICS[0];
-  const tooltipBuilder = tooltipFields?.length
-    ? (row) => [
-      `${row.stateName || row.name} (${row.name})`,
-      ...tooltipFields.map((field) => `${field.label}: ${field.format(row[field.key] || 0)}`),
-    ]
-    : defaultTooltipLines;
 
-  const { maxValue, minValue, stateRows, topByQuantity, topByValue, unknown } = useMemo(() => {
+  const { maxValue, minValue, rankedRows, stateRows, summaryRows, unknown } = useMemo(() => {
     const byUf = new Map((rows || []).map((row) => [row.name, row]));
     const mappedStates = BRAZIL_STATE_PATHS.map((state) => ({
       ...state,
-      row: {
-        ...emptyUfRow(state.uf, state.name),
-        ...(byUf.get(state.uf) || {}),
-        name: state.uf,
-        stateName: state.name,
-      },
+      row: normalizeMapRow(byUf.get(state.uf), state.uf, state.name),
     }));
     const values = mappedStates
       .map((state) => metricValue(state.row, metric))
       .filter((value) => value > 0);
-    const rankedRows = (rows || []).filter((row) => row.name !== UNKNOWN_UF);
+    const unknownRow = byUf.get(UNKNOWN_UF)
+      ? normalizeMapRow(byUf.get(UNKNOWN_UF), UNKNOWN_UF, UNKNOWN_UF)
+      : null;
+    const rowsForSidebar = [
+      ...mappedStates.map((state) => state.row),
+      ...(unknownRow && hasOperationalData(unknownRow) ? [unknownRow] : []),
+    ];
 
     return {
       maxValue: values.length ? Math.max(...values) : 0,
       minValue: values.length ? Math.min(...values) : 0,
+      rankedRows: sortUfRows(rowsForSidebar, metric),
       stateRows: mappedStates,
-      topByQuantity: [...rankedRows].sort((a, b) => b.shipments - a.shipments || b.totalCost - a.totalCost).slice(0, 5),
-      topByValue: [...rankedRows].sort((a, b) => b.totalCost - a.totalCost || b.shipments - a.shipments).slice(0, 5),
-      unknown: byUf.get(UNKNOWN_UF) || null,
+      summaryRows: mappedStates.map((state) => state.row),
+      unknown: unknownRow,
     };
   }, [metric, rows]);
 
@@ -138,32 +246,46 @@ export default function BrazilUfMap({
 
   return (
     <section className="brazil-map-card">
-      <div className="section-heading compact">
+      <div className="section-heading compact map-heading">
         <div>
-          <h3>Distribuição por UF</h3>
-          <p>Mapa coroplético do Brasil por estado, respeitando os filtros ativos.</p>
+          <h3>{title}</h3>
+          <p>{subtitle}</p>
         </div>
-        <label className="field inline-field">
-          <span>Métrica</span>
-          <select value={metric} onChange={(event) => onMetricChange(event.target.value)}>
-            {metrics.map((item) => (
-              <option key={item.key} value={item.key}>
-                {item.label}
-              </option>
-            ))}
-          </select>
-        </label>
+        <div className="map-controls">
+          {categoryOptions.length ? (
+            <label className="field inline-field">
+              <span>{categoryLabel}</span>
+              <select value={categoryFilter} onChange={(event) => onCategoryFilterChange?.(event.target.value)}>
+                {categoryOptions.map((item) => (
+                  <option key={item.value} value={item.value}>
+                    {item.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
+          <label className="field inline-field">
+            <span>Ordenar por</span>
+            <select value={metric} onChange={(event) => onMetricChange?.(event.target.value)}>
+              {metrics.map((item) => (
+                <option key={item.key} value={item.key}>
+                  {item.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
       </div>
 
       <div className="brazil-map-layout">
         <div className="brazil-map-panel">
           <svg className="brazil-map-svg" role="img" viewBox={BRAZIL_MAP_VIEWBOX} aria-label="Mapa do Brasil por UF">
-            <title>Distribuição dos envios dos Correios por UF</title>
+            <title>Distribuição operacional por UF</title>
             {stateRows.map(({ d, label, row, uf }) => {
               const value = metricValue(row, metric);
               const fill = colorForValue(value, maxValue);
               const isSelected = selectedUf === uf;
-              const stateTitle = tooltipBuilder(row).join('\n');
+              const stateTitle = buildTooltipLines(row, tooltipFields).join('\n');
 
               return (
                 <g key={uf}>
@@ -194,7 +316,7 @@ export default function BrazilUfMap({
             })}
           </svg>
 
-          <div className="map-legend" aria-label={`Legenda da métrica ${metricConfig.label}`}>
+          <div className="map-legend" aria-label={`Legenda de ${metricConfig.label}`}>
             <span>Menor</span>
             <div className="map-legend-scale">
               {COLOR_SCALE.map((color) => <i key={color} style={{ background: color }} />)}
@@ -217,9 +339,39 @@ export default function BrazilUfMap({
               <strong>{selectedUf || 'Todas'}</strong>
             </div>
           </div>
-          <RankingList metric="totalCost" onUfClick={handleUfClick} rows={topByValue} title="Top UFs por valor" />
-          <RankingList metric="shipments" onUfClick={handleUfClick} rows={topByQuantity} title="Top UFs por quantidade" />
+          <div className="uf-ranking-list all-ufs">
+            <h4>UFs por {metricConfig.label.toLowerCase()}</h4>
+            <div className="uf-ranking-scroll">
+              {rankedRows.map((row) => (
+                <UfSidebarRow
+                  isSelected={selectedUf === row.name}
+                  key={`sidebar-${row.name}`}
+                  row={row}
+                  onClick={() => handleUfClick(row.name)}
+                />
+              ))}
+            </div>
+          </div>
         </aside>
+      </div>
+
+      <div className="uf-summary-strip" aria-label="Resumo horizontal por UF">
+        {summaryRows.map((row) => (
+          <UfHorizontalSummary
+            isSelected={selectedUf === row.name}
+            key={`summary-${row.name}`}
+            row={row}
+            onClick={() => handleUfClick(row.name)}
+          />
+        ))}
+        {unknown && hasOperationalData(unknown) ? (
+          <UfHorizontalSummary
+            isSelected={selectedUf === UNKNOWN_UF}
+            key="summary-unknown"
+            row={unknown}
+            onClick={() => handleUfClick(UNKNOWN_UF)}
+          />
+        ) : null}
       </div>
 
       {unknown?.shipments ? (
@@ -230,14 +382,14 @@ export default function BrazilUfMap({
         >
           <strong>UF não identificada</strong>
           <span>
-            {formatInteger(unknown.shipments)} envios · {formatCurrency(unknown.totalCost)}
+            {formatInteger(unknown.shipments)} postagens · {formatCurrency(unknown.correiosCost)}
           </span>
         </button>
       ) : null}
 
       {tooltip ? (
         <div className="map-tooltip" style={{ left: tooltip.x, top: tooltip.y }}>
-          {tooltipBuilder(tooltip.row).map((line, index) => (
+          {buildTooltipLines(tooltip.row, tooltipFields).map((line, index) => (
             index ? <span key={line}>{line}</span> : <strong key={line}>{line}</strong>
           ))}
         </div>

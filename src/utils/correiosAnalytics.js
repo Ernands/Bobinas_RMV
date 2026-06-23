@@ -37,8 +37,11 @@ function listYearMonths(year) {
       totalCost: 0,
       totalWeight: 0,
       pac: 0,
+      pacCost: 0,
       sedex: 0,
+      sedexCost: 0,
       reversos: 0,
+      reverseCost: 0,
     };
   });
 }
@@ -49,12 +52,15 @@ function addRecordTotals(target, record) {
   target.totalWeight += safeNumber(record.weightKg);
   if (record.isPac) {
     target.pac += 1;
+    target.pacCost = safeNumber(target.pacCost) + safeNumber(record.serviceValue);
   }
   if (record.isSedex) {
     target.sedex += 1;
+    target.sedexCost = safeNumber(target.sedexCost) + safeNumber(record.serviceValue);
   }
   if (record.isReverse) {
     target.reversos += 1;
+    target.reverseCost = safeNumber(target.reverseCost) + safeNumber(record.serviceValue);
   }
 }
 
@@ -64,8 +70,11 @@ function makeTotals(records) {
     totalCost: 0,
     totalWeight: 0,
     pac: 0,
+    pacCost: 0,
     sedex: 0,
+    sedexCost: 0,
     reversos: 0,
+    reverseCost: 0,
   };
 
   records.forEach((record) => addRecordTotals(totals, record));
@@ -224,8 +233,11 @@ function buildCallTypeAnalysis(records, monthKeys) {
         totalCost: 0,
         totalWeight: 0,
         pac: 0,
+        pacCost: 0,
         sedex: 0,
+        sedexCost: 0,
         reversos: 0,
+        reverseCost: 0,
         monthly: Object.fromEntries(monthKeys.map((monthKey) => [monthKey, {
           monthKey,
           shipments: 0,
@@ -322,8 +334,11 @@ function buildEntityRanking(records, field, limit = 12) {
         totalCost: 0,
         totalWeight: 0,
         pac: 0,
+        pacCost: 0,
         sedex: 0,
+        sedexCost: 0,
         reversos: 0,
+        reverseCost: 0,
       });
     }
 
@@ -335,6 +350,9 @@ function buildEntityRanking(records, field, limit = 12) {
     .map((row) => ({
       ...row,
       averageCost: row.shipments ? row.totalCost / row.shipments : 0,
+      pacAverage: row.pac ? row.pacCost / row.pac : 0,
+      sedexAverage: row.sedex ? row.sedexCost / row.sedex : 0,
+      reverseAverage: row.reversos ? row.reverseCost / row.reversos : 0,
       percentageCost: totalCost ? (row.totalCost / totalCost) * 100 : 0,
       sedexPercent: row.shipments ? (row.sedex / row.shipments) * 100 : 0,
       reversePercent: row.shipments ? (row.reversos / row.shipments) * 100 : 0,
@@ -421,7 +439,7 @@ function buildAlerts(records, summary, monthly, callTypes, services, unitRanking
     alerts.push({
       type: 'danger',
       title: 'Registros sem UF',
-      message: `${missingUf} envio(s) sem UF identificada pela coluna ou pelo CEP.`,
+      message: `${missingUf} envio(s) sem UF identificada na coluna UF.`,
     });
   }
 

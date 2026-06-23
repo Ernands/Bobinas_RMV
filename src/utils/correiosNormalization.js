@@ -272,8 +272,7 @@ export function normalizeCorreiosRows(rawRows) {
     const discountValueRaw = getValue(row, columns.discountValue);
     const cepRaw = getValue(row, columns.cep);
     const ufFromColumn = normalizeUf(getValue(row, columns.uf));
-    const ufFromCep = resolveUfFromCep(cepRaw);
-    const uf = ufFromColumn || ufFromCep || UNKNOWN_UF;
+    const uf = ufFromColumn || UNKNOWN_UF;
     const postingDate = parseDate(postingRaw);
     const weightKg = parseWeightKg(weightRaw);
     const serviceValue = parseNumber(serviceValueRaw);
@@ -324,7 +323,7 @@ export function normalizeCorreiosRows(rawRows) {
       postingUnit: normalizeEmptyText(getValue(row, columns.postingUnit)),
       cep: normalizeEmptyText(cepRaw),
       uf,
-      ufSource: ufFromColumn ? 'coluna' : ufFromCep ? 'cep' : 'nao-identificada',
+      ufSource: ufFromColumn ? 'coluna' : 'nao-identificada',
       unitValue: Number.isFinite(unitValue) ? unitValue : 0,
       discountValue: Number.isFinite(discountValue) ? discountValue : 0,
       serviceValue: Number.isFinite(serviceValue) ? serviceValue : 0,

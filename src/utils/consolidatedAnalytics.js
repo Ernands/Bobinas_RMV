@@ -284,6 +284,9 @@ function buildUfSummary(records, filters) {
       requested: 0,
       correios: 0,
       difference: 0,
+      boxes: 0,
+      boxes16: 0,
+      boxes30: 0,
       bobbinCost: 0,
       correiosCost: 0,
       operationCost: 0,
@@ -294,6 +297,9 @@ function buildUfSummary(records, filters) {
     current.requested += getRequestedValue(record, filters);
     current.correios += record.correios;
     current.difference += record.difference;
+    current.boxes += getBoxesValue(record, filters);
+    current.boxes16 += record.boxes16;
+    current.boxes30 += record.boxes30;
     current.bobbinCost += getBobbinCostValue(record, filters);
     current.correiosCost += record.correiosCost;
     current.operationCost += record.operationCost;

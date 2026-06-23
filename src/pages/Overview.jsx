@@ -13,6 +13,7 @@ import {
 import {
   BarChart3,
   Boxes,
+  ChevronDown,
   CircleHelp,
   GraduationCap,
   Headphones,
@@ -20,6 +21,7 @@ import {
   Megaphone,
   Monitor,
   PackageOpen,
+  RotateCcw,
   Search,
   Truck,
   User,
@@ -30,7 +32,15 @@ import BrazilUfMap from '../components/BrazilUfMap';
 import ChartCard from '../components/ChartCard';
 import DataTable from '../components/DataTable';
 import { CONSOLIDATED_MONTHS } from '../utils/consolidatedConstants';
-import { formatCurrency, formatInteger, formatPercent } from '../utils/calculations';
+import {
+  BOBBIN_CONFIGS,
+  calculateCost,
+  ceilBoxes,
+  formatCurrency,
+  formatInteger,
+  formatPercent,
+  getBobbinKey,
+} from '../utils/calculations';
 
 const BASE_OPTIONS = [
   { value: 'all', label: 'Todas' },
@@ -55,6 +65,25 @@ const OVERVIEW_UF_TOOLTIP = [
   { key: 'requested', label: 'Solicitações', format: formatInteger },
   { key: 'correiosCost', label: 'Gasto Correios', format: formatCurrency },
   { key: 'operationCost', label: 'Custo total operação', format: formatCurrency },
+];
+
+const OVERVIEW_UF_SORT_METRICS = [
+  { key: 'shipments', label: 'Quantidade de postagens', format: formatInteger },
+  { key: 'correiosCost', label: 'Custo Correios', format: formatCurrency },
+  { key: 'bobbinCost', label: 'Custo Bobinas', format: formatCurrency },
+  { key: 'totalCost', label: 'Custo total', format: formatCurrency },
+];
+
+const OVERVIEW_UF_DETAIL_FIELDS = [
+  { key: 'shipments', label: 'Postagens', format: formatInteger },
+  { key: 'correiosCost', label: 'Custo Correios', format: formatCurrency },
+  { key: 'bobbinCost', label: 'Custo Bobinas', format: formatCurrency },
+  { key: 'totalCost', label: 'Custo total', format: formatCurrency },
+  { key: 'destinations', label: 'Destinos únicos', format: formatInteger },
+  { key: 'pac', label: 'PAC', format: formatInteger },
+  { key: 'sedex', label: 'SEDEX', format: formatInteger },
+  { key: 'reversos', label: 'Reversos', format: formatInteger },
+  { key: 'boxes', label: 'Caixas de bobinas', format: formatInteger },
 ];
 
 const CALL_TYPE_CARDS = [
@@ -114,6 +143,14 @@ const CALL_TYPE_CARDS = [
     icon: CircleHelp,
     tone: 'gray',
   },
+];
+
+const MAP_CALL_TYPE_OPTIONS = [
+  { value: '', label: 'Todos' },
+  ...CALL_TYPE_CARDS.map((card) => ({
+    value: card.id,
+    label: card.id === 'solicitation' ? 'Bobinas' : card.title,
+  })),
 ];
 
 function DashboardEmptyState() {
@@ -481,6 +518,131 @@ function buildOverviewUfRows(consolidatedUfRows = [], correiosUfRows = []) {
   }).sort((a, b) => b.totalCost - a.totalCost || b.quantity - a.quantity || a.name.localeCompare(b.name, 'pt-BR'));
 }
 
+function matchesCallTypeCard(record, cardId) {
+  if (!cardId) {
+    return true;
+  }
+
+  const card = CALL_TYPE_CARDS.find((item) => item.id === cardId);
+  if (!card) {
+    return true;
+  }
+
+  const callType = normalizeText(record.callType);
+  if (card.id === 'unknown') {
+    return !callType || callType === normalizeText('Não informado');
+  }
+
+  return card.aliases.some((alias) => callType === normalizeText(alias));
+}
+
+function addDestinationKey(target, value) {
+  const key = destinationKey(value);
+  if (key) {
+    target.destinationKeys.add(key);
+  }
+}
+
+function buildOverviewMapUfRows({
+  bobinasRecords = [],
+  consolidatedRecords = [],
+  consolidatedUfRows = [],
+  correiosRecords = [],
+}) {
+  const map = new Map();
+
+  function ensure(uf) {
+    const name = normalizeUfName(uf);
+    if (!map.has(name)) {
+      map.set(name, {
+        id: name,
+        name,
+        destinationKeys: new Set(),
+        destinations: 0,
+        shipments: 0,
+        correiosCost: 0,
+        bobbinCost: 0,
+        totalCost: 0,
+        averageCost: 0,
+        totalWeight: 0,
+        pac: 0,
+        pacCost: 0,
+        pacAverage: 0,
+        sedex: 0,
+        sedexCost: 0,
+        sedexAverage: 0,
+        reversos: 0,
+        reverseCost: 0,
+        reverseAverage: 0,
+        boxes: 0,
+      });
+    }
+    return map.get(name);
+  }
+
+  consolidatedUfRows.forEach((row) => {
+    const current = ensure(row.uf);
+    current.destinations = Math.max(current.destinations, row.destinations || 0);
+    current.bobbinCost += row.bobbinCost || 0;
+    current.boxes += row.boxes || 0;
+  });
+
+  consolidatedRecords.forEach((record) => {
+    addDestinationKey(ensure(record.uf), record.destination);
+  });
+
+  bobinasRecords.forEach((record) => {
+    const current = ensure(record.uf);
+    const quantity = Number(record.quantity) || 0;
+    const bobbinKey = getBobbinKey(record.bobbinType);
+    const config = BOBBIN_CONFIGS[bobbinKey];
+    addDestinationKey(current, record.destination);
+    if (config) {
+      current.bobbinCost += calculateCost(quantity, config.unitCost);
+      current.boxes += ceilBoxes(quantity, config.unitsPerBox);
+    }
+  });
+
+  correiosRecords.forEach((record) => {
+    const current = ensure(record.uf);
+    const serviceValue = Number(record.serviceValue) || 0;
+    current.shipments += 1;
+    current.correiosCost += serviceValue;
+    current.totalWeight += Number(record.weightKg) || 0;
+    addDestinationKey(current, getCorreiosDestination(record));
+
+    if (record.isPac) {
+      current.pac += 1;
+      current.pacCost += serviceValue;
+    }
+    if (record.isSedex) {
+      current.sedex += 1;
+      current.sedexCost += serviceValue;
+    }
+    if (record.isReverse) {
+      current.reversos += 1;
+      current.reverseCost += serviceValue;
+    }
+  });
+
+  return Array.from(map.values()).map((row) => {
+    const destinationCount = row.destinationKeys.size || row.destinations;
+    const totalCost = row.correiosCost + row.bobbinCost;
+    const cleaned = {
+      ...row,
+      destinations: destinationCount,
+      totalCost,
+      operationCost: totalCost,
+      averageCost: row.shipments ? totalCost / row.shipments : 0,
+      pacAverage: row.pac ? row.pacCost / row.pac : 0,
+      sedexAverage: row.sedex ? row.sedexCost / row.sedex : 0,
+      reverseAverage: row.reversos ? row.reverseCost / row.reversos : 0,
+    };
+    delete cleaned.destinationKeys;
+    return cleaned;
+  }).sort((a, b) => b.shipments - a.shipments || b.totalCost - a.totalCost || a.name.localeCompare(b.name, 'pt-BR'));
+}
+
 function OverviewFilters({
   baseScope,
   bobinasFilters,
@@ -498,6 +660,17 @@ function OverviewFilters({
   const selectedUf = bobinasFilters.uf || correiosFilters.uf || consolidatedFilters.uf || '';
   const selectedCallType = bobinasFilters.callType || correiosFilters.callType || '';
   const yearOptions = options.years?.length ? options.years : [selectedYear];
+  const [isOpen, setIsOpen] = useState(false);
+  const activeCount = [
+    baseScope !== 'all',
+    selectedMonth,
+    selectedUf,
+    selectedCallType,
+    bobinasFilters.statusMode && bobinasFilters.statusMode !== 'all',
+    correiosFilters.service,
+    correiosFilters.coban,
+    correiosFilters.loja,
+  ].filter(Boolean).length;
 
   function setYear(year) {
     const month = selectedMonth;
@@ -559,14 +732,57 @@ function OverviewFilters({
     }
   }
 
+  function resetVisibleFilters() {
+    onBaseScopeChange('all');
+    onBobinasFiltersChange({
+      ...bobinasFilters,
+      referenceMonth: '',
+      statusMode: 'all',
+      uf: '',
+      destination: '',
+      callType: '',
+    });
+    onCorreiosFiltersChange({
+      ...correiosFilters,
+      month: '',
+      service: '',
+      callType: '',
+      coban: '',
+      loja: '',
+      uf: '',
+    });
+    onConsolidatedFiltersChange({
+      ...consolidatedFilters,
+      month: '',
+      uf: '',
+    });
+  }
+
   return (
-    <section className="filters-panel expanded overview-main-filters">
+    <section className={`filters-panel overview-main-filters ${isOpen ? 'expanded' : 'collapsed'}`}>
       <div className="section-heading compact">
         <div>
           <p className="eyebrow">Filtros principais</p>
           <h2>Recorte executivo</h2>
         </div>
+        <div className="heading-actions">
+          <span className="filter-summary">
+            {activeCount ? `${activeCount} filtro(s) ativo(s)` : 'Sem filtros ativos'}
+          </span>
+          <button
+            className={`icon-button filters-toggle ${isOpen ? 'open' : ''}`}
+            title={isOpen ? 'Recolher filtros' : 'Expandir filtros'}
+            type="button"
+            onClick={() => setIsOpen((current) => !current)}
+          >
+            <ChevronDown size={18} aria-hidden="true" />
+          </button>
+          <button className="icon-button" title="Limpar filtros" type="button" onClick={resetVisibleFilters}>
+            <RotateCcw size={18} aria-hidden="true" />
+          </button>
+        </div>
       </div>
+      {isOpen ? (
       <div className="filters-grid overview-filter-grid">
         <label className="field">
           <span>Ano</span>
@@ -650,6 +866,7 @@ function OverviewFilters({
           </select>
         </label>
       </div>
+      ) : null}
     </section>
   );
 }
@@ -731,7 +948,8 @@ export default function Overview({
   overviewOptions,
 }) {
   const [baseScope, setBaseScope] = useState('all');
-  const [ufMetric, setUfMetric] = useState('totalCost');
+  const [ufMetric, setUfMetric] = useState('shipments');
+  const [mapCallType, setMapCallType] = useState('');
   const [matrixMode, setMatrixMode] = useState('value');
   const [matrixSearch, setMatrixSearch] = useState('');
   const selectedYear = latestYear(overviewOptions, bobinasFilters, correiosAnalytics, consolidatedAnalytics);
@@ -745,10 +963,32 @@ export default function Overview({
   }), [analytics, baseScope, consolidatedAnalytics, correiosAnalytics, hasConsolidatedData, selectedYear]);
   const rangeRows = useMemo(() => buildRangeRows(consolidatedAnalytics.rangeAnalysis), [consolidatedAnalytics.rangeAnalysis]);
   const monthlyReportRows = useMemo(() => buildMonthlyReportRows(monthlyRows), [monthlyRows]);
-  const overviewUfRows = useMemo(() => buildOverviewUfRows(
-    hasBase(baseScope, 'consolidado') ? consolidatedAnalytics.ufSummary : [],
-    hasBase(baseScope, 'correios') ? correiosAnalytics.rankings.ufs : [],
-  ), [baseScope, consolidatedAnalytics.ufSummary, correiosAnalytics.rankings.ufs]);
+  const mapCorreiosRecords = useMemo(
+    () => (hasBase(baseScope, 'correios')
+      ? correiosAnalytics.filteredRecords.filter((record) => matchesCallTypeCard(record, mapCallType))
+      : []),
+    [baseScope, correiosAnalytics.filteredRecords, mapCallType],
+  );
+  const includeBobbinCostsOnMap = !mapCallType || mapCallType === 'solicitation';
+  const useConsolidatedOnMap = (
+    hasBase(baseScope, 'consolidado')
+    && includeBobbinCostsOnMap
+    && consolidatedAnalytics.filteredRecords.length > 0
+  );
+  const useBobinasFallbackOnMap = hasBase(baseScope, 'bobinas') && includeBobbinCostsOnMap && !useConsolidatedOnMap;
+  const overviewUfRows = useMemo(() => buildOverviewMapUfRows({
+    bobinasRecords: useBobinasFallbackOnMap ? analytics.records : [],
+    consolidatedRecords: useConsolidatedOnMap ? consolidatedAnalytics.filteredRecords : [],
+    consolidatedUfRows: useConsolidatedOnMap ? consolidatedAnalytics.ufSummary : [],
+    correiosRecords: mapCorreiosRecords,
+  }), [
+    analytics.records,
+    consolidatedAnalytics.filteredRecords,
+    consolidatedAnalytics.ufSummary,
+    mapCorreiosRecords,
+    useBobinasFallbackOnMap,
+    useConsolidatedOnMap,
+  ]);
   const filteredMatrixRows = useMemo(() => {
     const query = matrixSearch.trim().toLowerCase();
     const rows = hasBase(baseScope, 'correios') ? correiosAnalytics.matrixRows : [];
@@ -871,6 +1111,24 @@ export default function Overview({
 
       <OverviewExecutiveCards cards={executiveCards} />
 
+      <BrazilUfMap
+        categoryFilter={mapCallType}
+        categoryOptions={MAP_CALL_TYPE_OPTIONS}
+        metric={ufMetric}
+        metrics={OVERVIEW_UF_SORT_METRICS}
+        rows={overviewUfRows}
+        selectedUf={bobinasFilters.uf || correiosFilters.uf || consolidatedFilters.uf}
+        subtitle="Postagens, custos de Correios, custos de bobinas e indicadores por UF no recorte executivo."
+        tooltipFields={OVERVIEW_UF_DETAIL_FIELDS}
+        onCategoryFilterChange={setMapCallType}
+        onMetricChange={setUfMetric}
+        onUfClick={(uf) => {
+          onBobinasFiltersChange({ ...bobinasFilters, uf });
+          onCorreiosFiltersChange({ ...correiosFilters, uf });
+          onConsolidatedFiltersChange({ ...consolidatedFilters, uf });
+        }}
+      />
+
       {!hasAnyData ? <DashboardEmptyState /> : <AlertBox alerts={visibleAlerts} />}
 
       <section className="charts-grid two">
@@ -937,20 +1195,6 @@ export default function Overview({
           />
         </ChartCard>
       </section>
-
-      <BrazilUfMap
-        metric={ufMetric}
-        metrics={OVERVIEW_UF_METRICS}
-        rows={overviewUfRows}
-        selectedUf={bobinasFilters.uf || correiosFilters.uf || consolidatedFilters.uf}
-        tooltipFields={OVERVIEW_UF_TOOLTIP}
-        onMetricChange={setUfMetric}
-        onUfClick={(uf) => {
-          onBobinasFiltersChange({ ...bobinasFilters, uf });
-          onCorreiosFiltersChange({ ...correiosFilters, uf });
-          onConsolidatedFiltersChange({ ...consolidatedFilters, uf });
-        }}
-      />
 
       <ChartCard title="Matriz anual por tipo de chamado" subtitle="Quantidade de envios ou valor gasto por mês">
         <div className="matrix-toolbar">
