@@ -34,6 +34,7 @@ import { formatMonth } from './utils/dateUtils';
 import { normalizeConsolidatedRows } from './utils/consolidatedNormalization';
 import { normalizeCorreiosRows } from './utils/correiosNormalization';
 import { normalizeRows } from './utils/normalization';
+import { normalizePurchasePlanningRows } from './utils/purchasePlanningNormalization';
 import { loadDataSourceUrl, loadPurchases, saveDataSourceUrl, savePurchases } from './utils/storage';
 
 const EMPTY_FILTERS = {
@@ -186,6 +187,9 @@ function normalizeDatasetRows(datasetId, rows) {
   if (config?.type === 'consolidado') {
     return normalizeConsolidatedRows(rows);
   }
+  if (config?.type === 'purchases') {
+    return normalizePurchasePlanningRows(rows);
+  }
   return normalizeGenericRows(rows);
 }
 
@@ -284,6 +288,7 @@ export default function App() {
   const records = datasets.bobinas?.records || [];
   const correiosRecords = datasets.correios?.records || [];
   const consolidatedRecords = datasets.consolidado?.records || [];
+  const purchasePlanningRecords = datasets.compras?.records || [];
 
   useEffect(() => {
     savePurchases(rawPurchases);
@@ -482,6 +487,9 @@ export default function App() {
     if (loadedIds.length === 1 && loadedIds[0] === 'consolidado') {
       setActiveTab('destinations');
     }
+    if (loadedIds.length === 1 && loadedIds[0] === 'compras') {
+      setActiveTab('purchases');
+    }
   }
 
   function savePurchase(purchase) {
@@ -562,6 +570,7 @@ export default function App() {
               onConsolidatedFiltersChange={setConsolidatedFilters}
               onCorreiosFiltersChange={setCorreiosFilters}
               overviewOptions={overviewOptions}
+              planningRecords={purchasePlanningRecords}
             />
           ) : null}
           {activeTab === 'monthly' ? <MonthlyDemand {...pageProps} /> : null}
@@ -570,8 +579,9 @@ export default function App() {
           {activeTab === 'bobbin30' ? <Bobbin30 {...pageProps} /> : null}
           {activeTab === 'purchases' ? (
             <Purchases
-              datasetState={datasets.bobinas}
-              records={records}
+              bobbinRecords={records}
+              datasetState={datasets.compras}
+              planningRecords={purchasePlanningRecords}
               rawPurchases={rawPurchases}
               onDelete={deletePurchase}
               onReplace={setRawPurchases}

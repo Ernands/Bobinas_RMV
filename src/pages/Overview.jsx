@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Bar,
   CartesianGrid,
@@ -17,6 +17,7 @@ import {
   CircleHelp,
   GraduationCap,
   Headphones,
+  Info,
   Mail,
   Megaphone,
   Monitor,
@@ -26,11 +27,13 @@ import {
   Truck,
   User,
   Wrench,
+  X,
 } from 'lucide-react';
 import AlertBox from '../components/AlertBox';
 import BrazilUfMap from '../components/BrazilUfMap';
 import ChartCard from '../components/ChartCard';
 import DataTable from '../components/DataTable';
+import PurchaseAnnualSummary from '../components/PurchaseAnnualSummary';
 import { CONSOLIDATED_MONTHS } from '../utils/consolidatedConstants';
 import {
   BOBBIN_CONFIGS,
@@ -644,6 +647,7 @@ function buildOverviewMapUfRows({
 }
 
 function OverviewFilters({
+  alertCount,
   baseScope,
   bobinasFilters,
   consolidatedFilters,
@@ -653,6 +657,7 @@ function OverviewFilters({
   onBobinasFiltersChange,
   onConsolidatedFiltersChange,
   onCorreiosFiltersChange,
+  onAlertsClick,
   options,
   selectedYear,
 }) {
@@ -766,6 +771,11 @@ function OverviewFilters({
           <h2>Recorte executivo</h2>
         </div>
         <div className="heading-actions">
+          <button className="button secondary overview-alert-button" type="button" onClick={onAlertsClick}>
+            <Info size={17} aria-hidden="true" />
+            Info/Alertas
+            {alertCount ? <span>{alertCount}</span> : null}
+          </button>
           <span className="filter-summary">
             {activeCount ? `${activeCount} filtro(s) ativo(s)` : 'Sem filtros ativos'}
           </span>
@@ -887,6 +897,57 @@ function OperationalImpacts({ rows }) {
   );
 }
 
+function OverviewInfoModal({ alerts, impacts, onClose }) {
+  useEffect(() => {
+    function handleKeyDown(event) {
+      if (event.key === 'Escape') {
+        onClose();
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
+
+  return (
+    <div className="modal-backdrop" role="presentation" onMouseDown={onClose}>
+      <section
+        aria-labelledby="overview-info-title"
+        aria-modal="true"
+        className="overview-info-modal"
+        role="dialog"
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        <header className="overview-info-modal-heading">
+          <div>
+            <p className="eyebrow">Visão Geral</p>
+            <h2 id="overview-info-title">Informações e alertas</h2>
+            <span>Principais ocorrências e impactos do recorte ativo.</span>
+          </div>
+          <button className="icon-button" title="Fechar" type="button" onClick={onClose}>
+            <X size={19} aria-hidden="true" />
+          </button>
+        </header>
+
+        <section className="overview-info-section">
+          <div className="overview-info-section-title">
+            <h3>Alertas da operação</h3>
+            <span>{alerts.length} ocorrência(s)</span>
+          </div>
+          <AlertBox alerts={alerts} />
+        </section>
+
+        <section className="overview-info-section">
+          <div className="overview-info-section-title">
+            <h3>Maiores impactos do período</h3>
+          </div>
+          <OperationalImpacts rows={impacts} />
+        </section>
+      </section>
+    </div>
+  );
+}
+
 function ExecutiveMetricRow({ detail, icon: Icon, label, value }) {
   return (
     <div className="executive-metric-row">
@@ -946,12 +1007,14 @@ export default function Overview({
   onConsolidatedFiltersChange,
   onCorreiosFiltersChange,
   overviewOptions,
+  planningRecords = [],
 }) {
   const [baseScope, setBaseScope] = useState('all');
   const [ufMetric, setUfMetric] = useState('shipments');
   const [mapCallType, setMapCallType] = useState('');
   const [matrixMode, setMatrixMode] = useState('value');
   const [matrixSearch, setMatrixSearch] = useState('');
+  const [isInfoOpen, setIsInfoOpen] = useState(false);
   const selectedYear = latestYear(overviewOptions, bobinasFilters, correiosAnalytics, consolidatedAnalytics);
   const monthlyRows = useMemo(() => buildOverviewMonthlyRows({
     analytics,
@@ -994,22 +1057,63 @@ export default function Overview({
     const rows = hasBase(baseScope, 'correios') ? correiosAnalytics.matrixRows : [];
     return query ? rows.filter((row) => row.callType.toLowerCase().includes(query)) : rows;
   }, [baseScope, correiosAnalytics.matrixRows, matrixSearch]);
+  const matrixRows = useMemo(() => {
+    if (!hasBase(baseScope, 'correios') || !correiosAnalytics.monthly.length) {
+      return filteredMatrixRows;
+    }
+
+    const monthValues = Object.fromEntries(correiosAnalytics.monthly.map((month) => [
+      month.monthKey,
+      filteredMatrixRows.reduce((sum, row) => sum + (Number(row.monthValues[month.monthKey]) || 0), 0),
+    ]));
+
+    return [
+      ...filteredMatrixRows,
+      {
+        id: 'matrix-monthly-cost-total',
+        callType: 'Custo total do mês',
+        isMonthlyCostTotal: true,
+        monthCounts: {},
+        monthValues,
+        totalCost: Object.values(monthValues).reduce((sum, value) => sum + value, 0),
+        totalShipments: 0,
+      },
+    ];
+  }, [baseScope, correiosAnalytics.monthly, filteredMatrixRows]);
   const visibleAlerts = useMemo(() => [
     ...(hasBase(baseScope, 'bobinas') ? analytics.alerts.map((alert) => ({ ...alert, title: `Bobinas: ${alert.title}` })) : []),
     ...(hasBase(baseScope, 'consolidado') ? consolidatedAnalytics.alerts.map((alert) => ({ ...alert, title: `Consolidado: ${alert.title}` })) : []),
     ...(hasBase(baseScope, 'correios') ? correiosAnalytics.alerts.map((alert) => ({ ...alert, title: `Correios: ${alert.title}` })) : []),
   ].slice(0, 8), [analytics.alerts, baseScope, consolidatedAnalytics.alerts, correiosAnalytics.alerts]);
   const matrixColumns = useMemo(() => [
-    { key: 'callType', label: 'Tipo de chamado' },
+    {
+      key: 'callType',
+      label: 'Tipo de chamado',
+      render: (row, raw) => (
+        row.isMonthlyCostTotal ? <strong className="matrix-month-cost-label">{raw}</strong> : raw
+      ),
+    },
     ...correiosAnalytics.monthly.map((month) => ({
       key: month.monthKey,
       label: month.shortMonth,
       value: (row) => {
+        if (row.isMonthlyCostTotal) {
+          return formatCurrency(row.monthValues[month.monthKey]);
+        }
         const value = matrixMode === 'value' ? row.monthValues[month.monthKey] : row.monthCounts[month.monthKey];
         return matrixMode === 'value' ? formatCurrency(value) : formatInteger(value);
       },
-      sortValue: (row) => (matrixMode === 'value' ? row.monthValues[month.monthKey] : row.monthCounts[month.monthKey]),
+      sortValue: (row) => (
+        row.isMonthlyCostTotal
+          ? row.monthValues[month.monthKey]
+          : matrixMode === 'value'
+            ? row.monthValues[month.monthKey]
+            : row.monthCounts[month.monthKey]
+      ),
       render: (row, raw) => {
+        if (row.isMonthlyCostTotal) {
+          return <span className="matrix-month-cost-total">{raw}</span>;
+        }
         const value = matrixMode === 'value' ? row.monthValues[month.monthKey] : row.monthCounts[month.monthKey];
         const maxValue = Math.max(...correiosAnalytics.monthly.map((item) => (
           matrixMode === 'value' ? row.monthValues[item.monthKey] || 0 : row.monthCounts[item.monthKey] || 0
@@ -1020,10 +1124,23 @@ export default function Overview({
     {
       key: 'total',
       label: 'Total',
-      value: (row) => (matrixMode === 'value' ? formatCurrency(row.totalCost) : formatInteger(row.totalShipments)),
-      sortValue: (row) => (matrixMode === 'value' ? row.totalCost : row.totalShipments),
+      value: (row) => (
+        row.isMonthlyCostTotal || matrixMode === 'value'
+          ? formatCurrency(row.totalCost)
+          : formatInteger(row.totalShipments)
+      ),
+      sortValue: (row) => (
+        row.isMonthlyCostTotal || matrixMode === 'value' ? row.totalCost : row.totalShipments
+      ),
+      render: (row, raw) => (
+        row.isMonthlyCostTotal ? <span className="matrix-month-cost-total">{raw}</span> : raw
+      ),
     },
   ], [correiosAnalytics.monthly, matrixMode]);
+  const planningAnnualRows = useMemo(
+    () => planningRecords.filter((row) => row.rowType === 'annual'),
+    [planningRecords],
+  );
   const hasAnyData = hasData || hasConsolidatedData || hasCorreiosData;
   const totals = {
     records: (
@@ -1096,6 +1213,7 @@ export default function Overview({
   return (
     <div className="page-grid">
       <OverviewFilters
+        alertCount={visibleAlerts.length}
         baseScope={baseScope}
         bobinasFilters={bobinasFilters}
         consolidatedFilters={consolidatedFilters}
@@ -1105,6 +1223,7 @@ export default function Overview({
         onBobinasFiltersChange={onBobinasFiltersChange}
         onConsolidatedFiltersChange={onConsolidatedFiltersChange}
         onCorreiosFiltersChange={onCorreiosFiltersChange}
+        onAlertsClick={() => setIsInfoOpen(true)}
         options={overviewOptions}
         selectedYear={selectedYear}
       />
@@ -1129,7 +1248,13 @@ export default function Overview({
         }}
       />
 
-      {!hasAnyData ? <DashboardEmptyState /> : <AlertBox alerts={visibleAlerts} />}
+      <PurchaseAnnualSummary
+        rows={planningAnnualRows}
+        subtitle="Consolidado da aba Compras_Bobinas para acompanhamento executivo."
+        title="Resumo anual de planejamento de compras"
+      />
+
+      {!hasAnyData ? <DashboardEmptyState /> : null}
 
       <section className="charts-grid two">
         <ChartCard title="Volume operacional mensal" subtitle="Bobinas solicitadas, bobinas enviadas e envios Correios">
@@ -1224,14 +1349,18 @@ export default function Overview({
         <DataTable
           columns={matrixColumns}
           emptyMessage="Sem dados de Envios Correios para a matriz no recorte."
-          rows={filteredMatrixRows}
+          rows={matrixRows}
           topScrollbar
         />
       </ChartCard>
 
-      <ChartCard title="Maiores impactos do período" subtitle="Resumo executivo dos principais pontos do recorte">
-        <OperationalImpacts rows={impacts} />
-      </ChartCard>
+      {isInfoOpen ? (
+        <OverviewInfoModal
+          alerts={visibleAlerts}
+          impacts={impacts}
+          onClose={() => setIsInfoOpen(false)}
+        />
+      ) : null}
     </div>
   );
 }

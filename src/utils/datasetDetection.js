@@ -48,6 +48,17 @@ const CONSOLIDADO_COLUMN_HINTS = [
   'custo total operação',
 ];
 
+const PURCHASES_COLUMN_HINTS = [
+  'ano',
+  'total cx 16m',
+  'valor 16m',
+  'total cx 30m',
+  'valor 30m',
+  'total caixas',
+  'total transacoes',
+  'total valor',
+];
+
 function toColumnKey(value) {
   return normalizeText(value).replace(/[^a-z0-9]/g, '');
 }
@@ -77,6 +88,11 @@ export function detectDatasetType(rows) {
   const bobinasScore = scoreHeaders(headers, BOBINAS_COLUMN_HINTS);
   const correiosScore = scoreHeaders(headers, CORREIOS_COLUMN_HINTS);
   const consolidadoScore = scoreHeaders(headers, CONSOLIDADO_COLUMN_HINTS);
+  const purchasesScore = scoreHeaders(headers, PURCHASES_COLUMN_HINTS);
+
+  if (purchasesScore >= 6) {
+    return 'compras';
+  }
 
   if (consolidadoScore >= 6 && consolidadoScore >= bobinasScore && consolidadoScore >= correiosScore) {
     return 'consolidado';

@@ -24,6 +24,14 @@ export const DATASET_CONFIGS = [
     enabled: true,
   },
   {
+    id: 'compras',
+    sheetName: 'Compras_Bobinas',
+    gid: '1226160452',
+    label: 'Compras_Bobinas',
+    type: 'purchases',
+    enabled: true,
+  },
+  {
     id: 'futuro1',
     sheetName: 'Futuro1',
     gid: '1375191094',
