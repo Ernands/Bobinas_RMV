@@ -6,9 +6,11 @@ import {
   CalendarDays,
   ChevronDown,
   Download,
+  Equal,
   Filter,
   Layers3,
   PackageCheck,
+  Plus,
   RotateCcw,
 } from 'lucide-react';
 import PurchaseAnnualSummary from '../components/PurchaseAnnualSummary';
@@ -186,35 +188,219 @@ function OperationalValue({ icon: Icon, label, value, detail, tone = '' }) {
   );
 }
 
-function OperationalMonth({ row }) {
+function StockFlowMetric({ detail, icon: Icon, label, status, tone, value }) {
   return (
-    <section className="planning-operational-strip">
-      <div className="planning-operational-title">
-        <span>Mês atual operacional</span>
-        <strong>{formatPlanningMonth(row.monthKey)}</strong>
+    <article className={`stock-flow-metric ${tone}`}>
+      <span className="stock-flow-metric-icon">
+        <Icon size={22} aria-hidden="true" />
+      </span>
+      <div>
+        <span>{label}</span>
+        <strong>{value}</strong>
+        <small>{detail}</small>
       </div>
-      <OperationalValue icon={CalendarDays} label="Data pedido" value={formatPlanningDate(row.orderDate)} />
-      <OperationalValue icon={CalendarDays} label="Entrega prevista" value={formatPlanningDate(row.deliveryDate)} />
-      <OperationalQuantity label="16 M" boxes={row.boxes16} units={row.units16} />
-      <OperationalQuantity label="30 M" boxes={row.boxes30} units={row.units30} tone="medium" />
-      <OperationalQuantity label="Total" boxes={row.totalBoxes} units={row.totalUnits} tone="total" />
-      <OperationalValue
-        icon={BarChart3}
-        label="Consumo"
-        value={Number.isFinite(row.consumptionUnits) ? formatInteger(row.consumptionUnits) : '-'}
-        detail="Unidades"
-        tone="orange"
-      />
-      <OperationalValue
-        icon={Layers3}
-        label="Saldo"
-        value={Number.isFinite(row.balanceUnits) ? formatInteger(row.balanceUnits) : '-'}
-        detail="Unidades"
-        tone={Number.isFinite(row.balanceUnits) && row.balanceUnits < 0 ? 'danger' : 'orange'}
-      />
-      <div className="operational-status">
-        <span>Status</span>
-        {planningStatus(row.status, row.statusTone)}
+      {status ? planningStatus(status.label, status.tone) : null}
+    </article>
+  );
+}
+
+function StockFlowChart({ flow }) {
+  const chartTop = 58;
+  const chartBottom = 252;
+  const largestAbsoluteValue = Math.max(1, Math.abs(flow.openingStock), Math.abs(flow.finalBalance));
+  const magnitude = 10 ** Math.floor(Math.log10(largestAbsoluteValue));
+  const extent = Math.ceil(largestAbsoluteValue / magnitude) * magnitude;
+  const minValue = -extent;
+  const maxValue = extent;
+
+  function y(value) {
+    return chartTop + ((maxValue - value) / (maxValue - minValue)) * (chartBottom - chartTop);
+  }
+
+  const zeroY = y(0);
+  const openingY = y(flow.openingStock);
+  const balanceY = y(flow.finalBalance);
+  const openingRectY = Math.min(openingY, zeroY);
+  const openingRectHeight = Math.max(2, Math.abs(zeroY - openingY));
+  const consumptionRectY = Math.min(openingY, balanceY);
+  const consumptionRectHeight = Math.max(2, Math.abs(balanceY - openingY));
+  const balanceRectY = Math.min(zeroY, balanceY);
+  const balanceRectHeight = Math.max(2, Math.abs(balanceY - zeroY));
+  const ticks = [extent, extent / 2, 0, -extent / 2, -extent];
+
+  return (
+    <div className="stock-flow-chart">
+      <div className="stock-flow-chart-title">
+        <BarChart3 size={19} aria-hidden="true" />
+        <strong>Visão do fluxo de estoque</strong>
+        <span>Unidades</span>
+      </div>
+      <svg
+        aria-label={`Fluxo de estoque: iniciado em ${formatInteger(flow.openingStock)}, consumo de ${formatInteger(flow.consumption)}, saldo de ${formatInteger(flow.finalBalance)} unidades.`}
+        role="img"
+        viewBox="0 0 920 310"
+      >
+        <defs>
+          <linearGradient id="stock-opening" x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0%" stopColor="#60A5FA" />
+            <stop offset="100%" stopColor="#2563EB" />
+          </linearGradient>
+          <linearGradient id="stock-consumption" x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0%" stopColor="#FB923C" />
+            <stop offset="100%" stopColor="#EA580C" />
+          </linearGradient>
+          <linearGradient id="stock-balance-positive" x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0%" stopColor="#1E3A8A" />
+            <stop offset="100%" stopColor="#0F172A" />
+          </linearGradient>
+          <linearGradient id="stock-balance-negative" x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0%" stopColor="#DC2626" />
+            <stop offset="100%" stopColor="#991B1B" />
+          </linearGradient>
+        </defs>
+
+        {ticks.map((tick) => (
+          <g key={tick}>
+            <line className="stock-flow-grid-line" x1="68" x2="876" y1={y(tick)} y2={y(tick)} />
+            <text className="stock-flow-axis-label" textAnchor="end" x="58" y={y(tick) + 4}>
+              {formatInteger(Math.round(tick))}
+            </text>
+          </g>
+        ))}
+        <line className="stock-flow-zero-line" x1="68" x2="876" y1={zeroY} y2={zeroY} />
+
+        <text className="stock-flow-bar-heading" textAnchor="middle" x="215" y="22">ESTOQUE INICIADO</text>
+        <text className="stock-flow-bar-value opening" textAnchor="middle" x="215" y="43">
+          {formatInteger(flow.openingStock)} un.
+        </text>
+        <rect fill="url(#stock-opening)" height={openingRectHeight} rx="5" width="130" x="150" y={openingRectY} />
+
+        <text className="stock-flow-bar-heading" textAnchor="middle" x="475" y="22">CONSUMO DO MÊS</text>
+        <text className="stock-flow-bar-value consumption" textAnchor="middle" x="475" y="43">
+          -{formatInteger(flow.consumption)} un.
+        </text>
+        <rect fill="url(#stock-consumption)" height={consumptionRectHeight} rx="5" width="130" x="410" y={consumptionRectY} />
+
+        <text className="stock-flow-bar-heading" textAnchor="middle" x="735" y="22">SALDO DO MÊS</text>
+        <text
+          className={`stock-flow-bar-value ${flow.finalBalance < 0 ? 'negative' : 'balance'}`}
+          textAnchor="middle"
+          x="735"
+          y="43"
+        >
+          {formatInteger(flow.finalBalance)} un.
+        </text>
+        <rect
+          fill={`url(#${flow.finalBalance < 0 ? 'stock-balance-negative' : 'stock-balance-positive'})`}
+          height={balanceRectHeight}
+          rx="5"
+          width="130"
+          x="670"
+          y={balanceRectY}
+        />
+
+        <line className="stock-flow-connector" x1="280" x2="410" y1={openingY} y2={openingY} />
+        <line className="stock-flow-connector" x1="540" x2="670" y1={balanceY} y2={balanceY} />
+
+        <text className="stock-flow-category" textAnchor="middle" x="215" y="286">Estoque iniciado</text>
+        <text className="stock-flow-category" textAnchor="middle" x="475" y="286">Consumo</text>
+        <text className="stock-flow-category" textAnchor="middle" x="735" y="286">Saldo final</text>
+      </svg>
+    </div>
+  );
+}
+
+function StockFlowComposition({ flow }) {
+  return (
+    <div className="stock-flow-composition">
+      <section>
+        <h4>Composição do estoque iniciado</h4>
+        <div className="stock-flow-equation">
+          <div className="stock-flow-equation-item">
+            <span>Compra 16 M</span>
+            <strong>{formatInteger(flow.purchase16)}</strong>
+          </div>
+          <Plus size={17} aria-hidden="true" />
+          <div className="stock-flow-equation-item">
+            <span>Compra 30 M</span>
+            <strong>{formatInteger(flow.purchase30)}</strong>
+          </div>
+          <Plus size={17} aria-hidden="true" />
+          <div className={`stock-flow-equation-item ${flow.previousBalance < 0 ? 'negative' : ''}`}>
+            <span>Saldo anterior</span>
+            <strong>{formatInteger(flow.previousBalance)}</strong>
+          </div>
+          <Equal size={18} aria-hidden="true" />
+          <div className="stock-flow-equation-item total">
+            <span>Estoque iniciado</span>
+            <strong>{formatInteger(flow.openingStock)}</strong>
+          </div>
+        </div>
+      </section>
+      <section className="stock-flow-formula">
+        <h4>Fórmula de cálculo</h4>
+        <p>
+          <Boxes size={17} aria-hidden="true" />
+          <span><strong>Estoque iniciado</strong> = compras 16 M + compras 30 M + saldo anterior</span>
+        </p>
+        <p>
+          <Equal size={17} aria-hidden="true" />
+          <span><strong>Saldo do mês</strong> = estoque iniciado - consumo do mês</span>
+        </p>
+      </section>
+    </div>
+  );
+}
+
+function OperationalMonth({ flow, row }) {
+  return (
+    <section className="planning-operational-group">
+      <div className="planning-operational-strip">
+        <div className="planning-operational-title">
+          <span>Mês atual operacional</span>
+          <strong>{formatPlanningMonth(row.monthKey)}</strong>
+        </div>
+        <OperationalValue icon={CalendarDays} label="Data pedido" value={formatPlanningDate(row.orderDate)} />
+        <OperationalValue icon={CalendarDays} label="Entrega prevista" value={formatPlanningDate(row.deliveryDate)} />
+        <OperationalQuantity label="16 M" boxes={row.boxes16} units={row.units16} />
+        <OperationalQuantity label="30 M" boxes={row.boxes30} units={row.units30} tone="medium" />
+        <OperationalQuantity label="Total" boxes={row.totalBoxes} units={row.totalUnits} tone="total" />
+      </div>
+
+      <div className="stock-flow-section">
+        <div className="stock-flow-heading">
+          <div>
+            <span>Fluxo de estoque do mês</span>
+            <h3>Compras, consumo e saldo operacional</h3>
+          </div>
+          <small>Valores consolidados em unidades</small>
+        </div>
+        <div className="stock-flow-metrics">
+          <StockFlowMetric
+            detail="Unidades disponíveis no início do mês"
+            icon={Boxes}
+            label="Estoque iniciado"
+            tone="opening"
+            value={`${formatInteger(flow.openingStock)} un.`}
+          />
+          <StockFlowMetric
+            detail="Unidades consumidas no mês atual"
+            icon={BarChart3}
+            label="Consumo do mês"
+            tone="consumption"
+            value={`${formatInteger(flow.consumption)} un.`}
+          />
+          <StockFlowMetric
+            detail="Unidades disponíveis ao final do mês"
+            icon={Layers3}
+            label="Saldo do mês"
+            status={{ label: row.status, tone: row.statusTone }}
+            tone={flow.finalBalance < 0 ? 'negative' : 'balance'}
+            value={`${formatInteger(flow.finalBalance)} un.`}
+          />
+        </div>
+        <StockFlowChart flow={flow} />
+        <StockFlowComposition flow={flow} />
       </div>
     </section>
   );
@@ -368,6 +554,32 @@ export default function Purchases({
     () => getOperationalMonth(planning.rows, planning.year),
     [planning.rows, planning.year],
   );
+  const operationalFlow = useMemo(() => {
+    if (!operationalMonth) {
+      return null;
+    }
+    const currentIndex = planning.rows.findIndex((row) => row.monthKey === operationalMonth.monthKey);
+    const previousRow = currentIndex > 0 ? planning.rows[currentIndex - 1] : null;
+    const previousBalance = Number.isFinite(previousRow?.balanceUnits) ? previousRow.balanceUnits : 0;
+    const purchase16 = Number(operationalMonth.units16) || 0;
+    const purchase30 = Number(operationalMonth.units30) || 0;
+    const openingStock = purchase16 + purchase30 + previousBalance;
+    const consumption = Number.isFinite(operationalMonth.consumptionUnits)
+      ? operationalMonth.consumptionUnits
+      : 0;
+    const finalBalance = Number.isFinite(operationalMonth.balanceUnits)
+      ? operationalMonth.balanceUnits
+      : openingStock - consumption;
+
+    return {
+      purchase16,
+      purchase30,
+      previousBalance,
+      openingStock,
+      consumption,
+      finalBalance,
+    };
+  }, [operationalMonth, planning.rows]);
   function updateFilter(field, value) {
     setFilters((current) => ({ ...current, [field]: value }));
   }
@@ -479,8 +691,8 @@ export default function Purchases({
         />
       </section>
 
-      {operationalMonth ? (
-        <OperationalMonth row={operationalMonth} />
+      {operationalMonth && operationalFlow ? (
+        <OperationalMonth flow={operationalFlow} row={operationalMonth} />
       ) : null}
 
       <section className="planning-table-section">

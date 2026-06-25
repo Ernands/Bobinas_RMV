@@ -1991,17 +1991,11 @@ tbody tr:last-child td {
     minmax(125px, 1.05fr)
     minmax(105px, 0.85fr)
     minmax(105px, 0.85fr)
-    repeat(3, minmax(115px, 1fr))
-    minmax(95px, 0.8fr)
-    minmax(95px, 0.8fr)
-    minmax(115px, 0.9fr)
-    116px;
+    repeat(3, minmax(115px, 1fr));
   align-items: stretch;
   overflow-x: auto;
-  border: 1px solid #93c5fd;
-  border-radius: 8px;
+  border-bottom: 1px solid #bfdbfe;
   background: #ffffff;
-  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.035);
 }
 
 .planning-operational-title,
@@ -3155,6 +3149,295 @@ tbody tr:last-child td {
   font-size: 13px;
 }
 
+.planning-operational-group {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid #93c5fd;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.045);
+}
+
+.stock-flow-section {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+}
+
+.stock-flow-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.stock-flow-heading span {
+  color: #2563eb;
+  font-size: 11px;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.stock-flow-heading h3 {
+  margin: 3px 0 0;
+  color: #111827;
+  font-size: 18px;
+}
+
+.stock-flow-heading small {
+  color: #6b7280;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.stock-flow-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.stock-flow-metric {
+  --flow-color: #2563eb;
+  --flow-soft: #eff6ff;
+  display: grid;
+  min-height: 112px;
+  grid-template-columns: 48px minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  border: 1px solid #e5e7eb;
+  border-top: 3px solid var(--flow-color);
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 14px;
+}
+
+.stock-flow-metric.consumption {
+  --flow-color: #ea580c;
+  --flow-soft: #fff7ed;
+}
+
+.stock-flow-metric.balance {
+  --flow-color: #0f2f5c;
+  --flow-soft: #eef2f7;
+}
+
+.stock-flow-metric.negative {
+  --flow-color: #dc2626;
+  --flow-soft: #fef2f2;
+}
+
+.stock-flow-metric-icon {
+  display: grid;
+  width: 46px;
+  height: 46px;
+  place-items: center;
+  border-radius: 8px;
+  background: var(--flow-soft);
+  color: var(--flow-color);
+}
+
+.stock-flow-metric > div > span,
+.stock-flow-metric strong,
+.stock-flow-metric small {
+  display: block;
+}
+
+.stock-flow-metric > div > span {
+  color: #374151;
+  font-size: 10px;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.stock-flow-metric strong {
+  margin-top: 6px;
+  color: var(--flow-color);
+  font-size: 23px;
+  line-height: 1.1;
+}
+
+.stock-flow-metric small {
+  margin-top: 5px;
+  color: #6b7280;
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.stock-flow-chart {
+  min-width: 0;
+  overflow-x: auto;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 14px;
+}
+
+.stock-flow-chart-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #1d4ed8;
+}
+
+.stock-flow-chart-title strong {
+  color: #111827;
+  font-size: 14px;
+}
+
+.stock-flow-chart-title span {
+  margin-left: auto;
+  color: #6b7280;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.stock-flow-chart > svg {
+  display: block;
+  width: 100%;
+  min-width: 720px;
+  height: auto;
+  margin-top: 8px;
+}
+
+.stock-flow-grid-line {
+  stroke: #e5e7eb;
+  stroke-dasharray: 4 5;
+}
+
+.stock-flow-zero-line {
+  stroke: #94a3b8;
+  stroke-width: 1.4;
+}
+
+.stock-flow-connector {
+  stroke: #64748b;
+  stroke-width: 1.4;
+  stroke-dasharray: 6 5;
+}
+
+.stock-flow-axis-label,
+.stock-flow-category {
+  fill: #64748b;
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.stock-flow-bar-heading {
+  fill: #334155;
+  font-size: 10px;
+  font-weight: 850;
+}
+
+.stock-flow-bar-value {
+  fill: #0f2f5c;
+  font-size: 15px;
+  font-weight: 850;
+}
+
+.stock-flow-bar-value.opening {
+  fill: #2563eb;
+}
+
+.stock-flow-bar-value.consumption {
+  fill: #ea580c;
+}
+
+.stock-flow-bar-value.negative {
+  fill: #dc2626;
+}
+
+.stock-flow-composition {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(300px, 0.75fr);
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.stock-flow-composition > section {
+  padding: 15px;
+}
+
+.stock-flow-composition > section + section {
+  border-left: 1px solid #e5e7eb;
+}
+
+.stock-flow-composition h4 {
+  margin: 0 0 12px;
+  color: #111827;
+  font-size: 13px;
+}
+
+.stock-flow-equation {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.stock-flow-equation-item {
+  display: grid;
+  min-width: 112px;
+  min-height: 72px;
+  place-content: center;
+  border: 1px solid #dbe2ea;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 9px 12px;
+  text-align: center;
+}
+
+.stock-flow-equation-item span {
+  color: #64748b;
+  font-size: 10px;
+  font-weight: 750;
+}
+
+.stock-flow-equation-item strong {
+  margin-top: 6px;
+  color: #2563eb;
+  font-size: 17px;
+}
+
+.stock-flow-equation-item.negative {
+  border-color: #fecaca;
+  background: #fef2f2;
+}
+
+.stock-flow-equation-item.negative strong {
+  color: #dc2626;
+}
+
+.stock-flow-equation-item.total {
+  border-color: #93c5fd;
+  background: #eff6ff;
+}
+
+.stock-flow-formula {
+  display: grid;
+  align-content: center;
+  gap: 10px;
+}
+
+.stock-flow-formula p {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: 9px;
+  align-items: start;
+  margin: 0;
+  color: #475569;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.stock-flow-formula p > svg {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  background: #1d4ed8;
+  color: #ffffff;
+  padding: 6px;
+}
+
 @media (max-width: 1320px) {
   .app-shell {
     grid-template-columns: 220px minmax(0, 1fr);
@@ -3205,6 +3488,19 @@ tbody tr:last-child td {
 
   .purchase-summary-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .stock-flow-composition {
+    grid-template-columns: 1fr;
+  }
+
+  .stock-flow-composition > section + section {
+    border-top: 1px solid #e5e7eb;
+    border-left: 0;
+  }
+
+  .stock-flow-equation {
+    flex-wrap: wrap;
   }
 
   .monthly-planning-form {
@@ -3323,6 +3619,15 @@ tbody tr:last-child td {
   }
 
   .purchase-summary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .stock-flow-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .stock-flow-metrics {
     grid-template-columns: 1fr;
   }
 

@@ -243,7 +243,7 @@ export function buildPurchasePlanning(
   const manualByMonth = monthlyManualFallback(purchases, year);
   const bobbinConsumption = buildBobbinConsumption(bobbinRecords, year);
 
-  const rows = monthKeysForYear(year).reverse().map((monthKey) => {
+  const rows = monthKeysForYear(year).map((monthKey) => {
     const sheetRow = sheetByMonth.get(monthKey);
     if (sheetRow) {
       return enrichMonthlyRow({ ...emptyMonth(monthKey), ...sheetRow, source: 'sheet' });
