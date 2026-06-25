@@ -24,15 +24,16 @@ function monthKeysForYear(year) {
 }
 
 function emptyMonth(monthKey) {
-  const nextMonth = Number(monthKey.slice(5, 7)) + 2;
-  const nextDate = new Date(Number(monthKey.slice(0, 4)), nextMonth - 1, 1);
-  const consumptionMonth = `${nextDate.getFullYear()}-${String(nextDate.getMonth() + 1).padStart(2, '0')}`;
+  const consumptionDate = new Date(Number(monthKey.slice(0, 4)), Number(monthKey.slice(5, 7)) - 1, 1);
+  const purchaseDate = new Date(consumptionDate.getFullYear(), consumptionDate.getMonth() - 2, 1);
+  const purchaseMonth = `${purchaseDate.getFullYear()}-${String(purchaseDate.getMonth() + 1).padStart(2, '0')}`;
 
   return {
     id: `empty-${monthKey}`,
     rowType: 'monthly',
     monthKey,
-    consumptionMonth,
+    consumptionMonth: monthKey,
+    purchaseMonth,
     transactions: 0,
     units16: 0,
     boxes16: 0,
@@ -56,10 +57,16 @@ function monthlyManualFallback(purchases, year) {
   const byMonth = new Map();
 
   purchases.forEach((purchase) => {
-    if (!purchase.month?.startsWith(`${year}-`)) {
+    if (!purchase.month) {
       return;
     }
-    const current = byMonth.get(purchase.month) || emptyMonth(purchase.month);
+    const purchaseDate = new Date(Number(purchase.month.slice(0, 4)), Number(purchase.month.slice(5, 7)) - 1, 1);
+    const consumptionDate = new Date(purchaseDate.getFullYear(), purchaseDate.getMonth() + 2, 1);
+    const consumptionMonth = `${consumptionDate.getFullYear()}-${String(consumptionDate.getMonth() + 1).padStart(2, '0')}`;
+    if (!consumptionMonth.startsWith(`${year}-`)) {
+      return;
+    }
+    const current = byMonth.get(consumptionMonth) || emptyMonth(consumptionMonth);
     const typeKey = getBobbinKey(purchase.type);
     const boxes16 = Number(purchase.boxes16) || (typeKey === '16' ? Number(purchase.boxes) || 0 : 0);
     const boxes30 = Number(purchase.boxes30) || (typeKey === '30' ? Number(purchase.boxes) || 0 : 0);
@@ -74,9 +81,10 @@ function monthlyManualFallback(purchases, year) {
     current.totalValue = current.value16 + current.value30;
     current.orderDate = purchase.purchaseDate ? new Date(`${purchase.purchaseDate}T00:00:00`) : current.orderDate;
     current.deliveryDate = purchase.deliveryDate ? new Date(`${purchase.deliveryDate}T00:00:00`) : current.deliveryDate;
+    current.purchaseMonth = purchase.month;
     current.hasPurchaseData = current.totalUnits > 0;
     current.source = 'manual';
-    byMonth.set(purchase.month, current);
+    byMonth.set(consumptionMonth, current);
   });
 
   return byMonth;
@@ -229,13 +237,13 @@ export function buildPurchasePlanning(
     : years[0] || String(new Date().getFullYear());
   const sheetByMonth = new Map(
     sheetMonthlyRows
-      .filter((row) => row.monthKey?.startsWith(`${year}-`))
-      .map((row) => [row.monthKey, row]),
+      .filter((row) => row.consumptionMonth?.startsWith(`${year}-`))
+      .map((row) => [row.consumptionMonth, row]),
   );
   const manualByMonth = monthlyManualFallback(purchases, year);
   const bobbinConsumption = buildBobbinConsumption(bobbinRecords, year);
 
-  const rows = monthKeysForYear(year).map((monthKey) => {
+  const rows = monthKeysForYear(year).reverse().map((monthKey) => {
     const sheetRow = sheetByMonth.get(monthKey);
     if (sheetRow) {
       return enrichMonthlyRow({ ...emptyMonth(monthKey), ...sheetRow, source: 'sheet' });

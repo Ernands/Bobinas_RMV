@@ -98,7 +98,7 @@ export function parseNumber(value) {
     text = text.replace(/\./g, '');
   } else if (lastDot > -1) {
     const decimals = text.length - lastDot - 1;
-    if (decimals === 3 && /^\d{1,3}(\.\d{3})+$/.test(text)) {
+    if (decimals === 3 && /^-?\d{1,3}(\.\d{3})+$/.test(text)) {
       text = text.replace(/\./g, '');
     }
   }

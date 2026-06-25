@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Boxes, ChevronDown } from 'lucide-react';
+import { Boxes, ChevronDown, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import Header from './components/Header';
 import UploadBox from './components/UploadBox';
 import Filters from './components/Filters';
@@ -193,7 +193,7 @@ function normalizeDatasetRows(datasetId, rows) {
   return normalizeGenericRows(rows);
 }
 
-function Sidebar({ activeTab, onChange }) {
+function Sidebar({ activeTab, isCollapsed, onChange, onToggle }) {
   const activeGroupId = getActiveGroupId(activeTab);
   const [openGroupId, setOpenGroupId] = useState(activeGroupId);
 
@@ -206,67 +206,83 @@ function Sidebar({ activeTab, onChange }) {
   }
 
   return (
-    <aside className="sidebar">
-      <div className="brand">
-        <div className="brand-mark">
-          <Boxes size={23} aria-hidden="true" />
+    <aside className={`sidebar${isCollapsed ? ' collapsed' : ''}`}>
+      <button
+        aria-expanded={!isCollapsed}
+        aria-label={isCollapsed ? 'Expandir menu lateral' : 'Recolher menu lateral'}
+        className="sidebar-collapse-toggle"
+        title={isCollapsed ? 'Expandir menu lateral' : 'Recolher menu lateral'}
+        type="button"
+        onClick={onToggle}
+      >
+        {isCollapsed
+          ? <PanelLeftOpen size={18} aria-hidden="true" />
+          : <PanelLeftClose size={18} aria-hidden="true" />}
+      </button>
+
+      <div aria-hidden={isCollapsed} className="sidebar-content">
+        <div className="brand">
+          <div className="brand-mark">
+            <Boxes size={23} aria-hidden="true" />
+          </div>
+          <div>
+            <strong>RMV Operacional</strong>
+            <span>Painel local</span>
+          </div>
         </div>
-        <div>
-          <strong>RMV Operacional</strong>
-          <span>Painel local</span>
-        </div>
-      </div>
 
-      <nav className="sidebar-nav" aria-label="Menu principal">
-        {NAV_GROUPS.map((group) => {
-          const isOpen = openGroupId === group.id;
-          const panelId = `sidebar-group-${group.id}`;
-          const GroupIcon = group.icon;
+        <nav className="sidebar-nav" aria-label="Menu principal">
+          {NAV_GROUPS.map((group) => {
+            const isOpen = openGroupId === group.id;
+            const panelId = `sidebar-group-${group.id}`;
+            const GroupIcon = group.icon;
 
-          return (
-            <div className="sidebar-group" key={group.id}>
-              <button
-                aria-controls={panelId}
-                aria-expanded={isOpen}
-                className={`sidebar-group-trigger${isOpen ? ' open' : ''}`}
-                type="button"
-                onClick={() => toggleGroup(group.id)}
-              >
-                <span className="sidebar-group-title">
-                  <GroupIcon size={15} aria-hidden="true" />
-                  {group.label}
-                </span>
-                <ChevronDown className="sidebar-group-chevron" size={16} aria-hidden="true" />
-              </button>
+            return (
+              <div className="sidebar-group" key={group.id}>
+                <button
+                  aria-controls={panelId}
+                  aria-expanded={isOpen}
+                  className={`sidebar-group-trigger${isOpen ? ' open' : ''}`}
+                  tabIndex={isCollapsed ? -1 : undefined}
+                  type="button"
+                  onClick={() => toggleGroup(group.id)}
+                >
+                  <span className="sidebar-group-title">
+                    <GroupIcon size={15} aria-hidden="true" />
+                    {group.label}
+                  </span>
+                  <ChevronDown className="sidebar-group-chevron" size={16} aria-hidden="true" />
+                </button>
 
-              <div
-                aria-hidden={!isOpen}
-                className={`sidebar-group-items${isOpen ? ' open' : ''}`}
-                id={panelId}
-              >
-                {group.items.map((item) => (
-                  <button
-                    className={activeTab === item.id ? 'active' : ''}
-                    disabled={item.disabled}
-                    key={item.id}
-                    tabIndex={isOpen ? undefined : -1}
-                    title={item.disabled ? 'Em preparação' : undefined}
-                    type="button"
-                    onClick={() => onChange(item.id)}
-                  >
-                    <item.icon size={18} aria-hidden="true" />
-                    {item.label}
-                  </button>
-                ))}
+                <div
+                  aria-hidden={!isOpen}
+                  className={`sidebar-group-items${isOpen ? ' open' : ''}`}
+                  id={panelId}
+                >
+                  {group.items.map((item) => (
+                    <button
+                      className={activeTab === item.id ? 'active' : ''}
+                      disabled={item.disabled}
+                      key={item.id}
+                      tabIndex={!isCollapsed && isOpen ? undefined : -1}
+                      title={item.disabled ? 'Em preparação' : undefined}
+                      type="button"
+                      onClick={() => onChange(item.id)}
+                    >
+                      <item.icon size={18} aria-hidden="true" />
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
-          );
-        })}
-      </nav>
+            );
+          })}
+        </nav>
 
-      <div className="sidebar-footer">
-        <span>Sem banco</span>
-        <span>Sem API</span>
+        <div className="sidebar-footer">
+          <span>Sem banco</span>
+          <span>Sem API</span>
+        </div>
       </div>
     </aside>
   );
@@ -281,6 +297,7 @@ export default function App() {
   const [correiosFilters, setCorreiosFilters] = useState(EMPTY_CORREIOS_FILTERS);
   const [consolidatedFilters, setConsolidatedFilters] = useState(EMPTY_CONSOLIDATED_FILTERS);
   const [activeTab, setActiveTab] = useState('overview');
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [includePartialMonth, setIncludePartialMonth] = useState(false);
   const [rawPurchases, setRawPurchases] = useState(() => loadPurchases());
   const [dataSourceUrl, setDataSourceUrl] = useState(() => loadDataSourceUrl());
@@ -522,8 +539,16 @@ export default function App() {
   const showBobinasFilters = records.length > 0 && activeTab !== 'overview' && BOBINAS_FILTER_TABS.has(activeTab);
 
   return (
-    <div className="app-shell notranslate" translate="no">
-      <Sidebar activeTab={activeTab} onChange={setActiveTab} />
+    <div
+      className={`app-shell notranslate${isSidebarCollapsed ? ' sidebar-collapsed' : ''}`}
+      translate="no"
+    >
+      <Sidebar
+        activeTab={activeTab}
+        isCollapsed={isSidebarCollapsed}
+        onChange={setActiveTab}
+        onToggle={() => setIsSidebarCollapsed((current) => !current)}
+      />
       <main className="main-shell">
         <Header
           dataSourceStatus={dataSourceStatus}

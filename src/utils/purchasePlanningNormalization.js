@@ -41,9 +41,9 @@ const ANNUAL_ALIASES = {
 };
 
 const MONTHLY_ALIASES = {
-  purchaseMonth: ['mes compra'],
   consumptionMonth: ['mes de consumo', 'mes consumo'],
-  transactions: ['trans mes compra', 'transacoes mes compra'],
+  purchaseMonth: ['mes compra'],
+  transactions: ['trans mes consumo', 'transacoes mes consumo', 'trans mes compra', 'transacoes mes compra'],
   units16: ['unidades 16m'],
   boxes16: ['caixa 16m', 'caixas 16m'],
   value16: ['valor 16m'],
@@ -56,7 +56,7 @@ const MONTHLY_ALIASES = {
   consumption: ['consumo'],
   balance: ['saldo'],
   orderDate: ['data pedido'],
-  deliveryDate: ['data entrega prevista'],
+  deliveryDate: ['data entrega/prevista', 'data entrega prevista'],
 };
 
 function safeNumber(value) {
@@ -131,7 +131,12 @@ function isAnnualRow(row) {
 }
 
 function isMonthlyHeader(row) {
-  return normalizeText(readAnnualValue(row, ANNUAL_ALIASES.year)) === 'mes compra';
+  const labels = new Set(Object.values(row || {}).map(toColumnKey).filter(Boolean));
+  return (
+    MONTHLY_ALIASES.consumptionMonth.some((alias) => labels.has(toColumnKey(alias)))
+    && MONTHLY_ALIASES.purchaseMonth.some((alias) => labels.has(toColumnKey(alias)))
+    && MONTHLY_ALIASES.balance.some((alias) => labels.has(toColumnKey(alias)))
+  );
 }
 
 function normalizeAnnualRow(row, index) {
@@ -157,35 +162,55 @@ function normalizeAnnualRow(row, index) {
 }
 
 function normalizeMonthlyRow(row, columnMap, index) {
-  const purchaseMonth = parseMonthCell(readMonthlyValue(row, columnMap, MONTHLY_ALIASES.purchaseMonth));
-  const consumptionMonth = parseMonthCell(readMonthlyValue(row, columnMap, MONTHLY_ALIASES.consumptionMonth));
-  const orderDate = parseDate(readMonthlyValue(row, columnMap, MONTHLY_ALIASES.orderDate));
-  const deliveryDate = parseDate(readMonthlyValue(row, columnMap, MONTHLY_ALIASES.deliveryDate));
+  const raw = {
+    consumptionMonth: readMonthlyValue(row, columnMap, MONTHLY_ALIASES.consumptionMonth),
+    purchaseMonth: readMonthlyValue(row, columnMap, MONTHLY_ALIASES.purchaseMonth),
+    transactions: readMonthlyValue(row, columnMap, MONTHLY_ALIASES.transactions),
+    units16: readMonthlyValue(row, columnMap, MONTHLY_ALIASES.units16),
+    boxes16: readMonthlyValue(row, columnMap, MONTHLY_ALIASES.boxes16),
+    value16: readMonthlyValue(row, columnMap, MONTHLY_ALIASES.value16),
+    units30: readMonthlyValue(row, columnMap, MONTHLY_ALIASES.units30),
+    boxes30: readMonthlyValue(row, columnMap, MONTHLY_ALIASES.boxes30),
+    value30: readMonthlyValue(row, columnMap, MONTHLY_ALIASES.value30),
+    totalUnits: readMonthlyValue(row, columnMap, MONTHLY_ALIASES.totalUnits),
+    totalBoxes: readMonthlyValue(row, columnMap, MONTHLY_ALIASES.totalBoxes),
+    totalValue: readMonthlyValue(row, columnMap, MONTHLY_ALIASES.totalValue),
+    consumption: readMonthlyValue(row, columnMap, MONTHLY_ALIASES.consumption),
+    balance: readMonthlyValue(row, columnMap, MONTHLY_ALIASES.balance),
+    orderDate: readMonthlyValue(row, columnMap, MONTHLY_ALIASES.orderDate),
+    deliveryDate: readMonthlyValue(row, columnMap, MONTHLY_ALIASES.deliveryDate),
+  };
+  const consumptionMonth = parseMonthCell(raw.consumptionMonth);
+  const purchaseMonth = parseMonthCell(raw.purchaseMonth);
+  const orderDate = parseDate(raw.orderDate);
+  const deliveryDate = parseDate(raw.deliveryDate);
 
   return {
-    id: `monthly-${purchaseMonth || index}`,
+    id: `monthly-${consumptionMonth || purchaseMonth || index}`,
     rowType: 'monthly',
-    monthKey: purchaseMonth,
+    monthKey: consumptionMonth,
     consumptionMonth,
-    transactions: safeNumber(readMonthlyValue(row, columnMap, MONTHLY_ALIASES.transactions)),
-    units16: safeNumber(readMonthlyValue(row, columnMap, MONTHLY_ALIASES.units16)),
-    boxes16: safeNumber(readMonthlyValue(row, columnMap, MONTHLY_ALIASES.boxes16)),
-    value16: safeNumber(readMonthlyValue(row, columnMap, MONTHLY_ALIASES.value16)),
-    units30: safeNumber(readMonthlyValue(row, columnMap, MONTHLY_ALIASES.units30)),
-    boxes30: safeNumber(readMonthlyValue(row, columnMap, MONTHLY_ALIASES.boxes30)),
-    value30: safeNumber(readMonthlyValue(row, columnMap, MONTHLY_ALIASES.value30)),
-    totalUnits: safeNumber(readMonthlyValue(row, columnMap, MONTHLY_ALIASES.totalUnits)),
-    totalBoxes: safeNumber(readMonthlyValue(row, columnMap, MONTHLY_ALIASES.totalBoxes)),
-    totalValue: safeNumber(readMonthlyValue(row, columnMap, MONTHLY_ALIASES.totalValue)),
-    consumptionUnits: optionalNumber(readMonthlyValue(row, columnMap, MONTHLY_ALIASES.consumption)),
-    balanceUnits: optionalNumber(readMonthlyValue(row, columnMap, MONTHLY_ALIASES.balance)),
+    purchaseMonth,
+    transactions: safeNumber(raw.transactions),
+    units16: safeNumber(raw.units16),
+    boxes16: safeNumber(raw.boxes16),
+    value16: safeNumber(raw.value16),
+    units30: safeNumber(raw.units30),
+    boxes30: safeNumber(raw.boxes30),
+    value30: safeNumber(raw.value30),
+    totalUnits: safeNumber(raw.totalUnits),
+    totalBoxes: safeNumber(raw.totalBoxes),
+    totalValue: safeNumber(raw.totalValue),
+    consumptionUnits: optionalNumber(raw.consumption),
+    balanceUnits: optionalNumber(raw.balance),
     orderDate,
     deliveryDate,
+    display: raw,
     hasPurchaseData: Boolean(
       orderDate
       || deliveryDate
-      || readMonthlyValue(row, columnMap, MONTHLY_ALIASES.units16)
-      || readMonthlyValue(row, columnMap, MONTHLY_ALIASES.units30),
+      || raw.units16
+      || raw.units30,
     ),
   };
 }
@@ -201,7 +226,7 @@ export function normalizePurchasePlanningRows(rawRows) {
   const monthlyRows = monthlyHeader
     ? rows.slice(monthlyHeaderIndex + 1)
       .map((row, index) => normalizeMonthlyRow(row, monthlyColumnMap, index))
-      .filter((row) => row.monthKey)
+      .filter((row) => row.consumptionMonth)
     : [];
 
   return {

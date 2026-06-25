@@ -7,7 +7,6 @@ import {
   ChevronDown,
   Download,
   Filter,
-  History,
   Layers3,
   PackageCheck,
   RotateCcw,
@@ -54,21 +53,6 @@ function PurchaseSummaryCard({
         <strong>{formatInteger(boxes)} caixas</strong>
         <small>{formatInteger(units)} unidades</small>
         <b>{formatCurrency(value)}</b>
-      </div>
-    </article>
-  );
-}
-
-function CriticalSummaryCard({ count }) {
-  return (
-    <article className={`purchase-summary-card compact ${count ? 'red' : 'green'}`}>
-      <div className="purchase-summary-icon">
-        <AlertTriangle size={22} aria-hidden="true" />
-      </div>
-      <div className="purchase-summary-content">
-        <span>Meses críticos</span>
-        <strong>{formatInteger(count)}</strong>
-        <small>Saldo negativo ou cobertura abaixo de 35%</small>
       </div>
     </article>
   );
@@ -202,7 +186,7 @@ function OperationalValue({ icon: Icon, label, value, detail, tone = '' }) {
   );
 }
 
-function OperationalMonth({ row, onDetails }) {
+function OperationalMonth({ row }) {
   return (
     <section className="planning-operational-strip">
       <div className="planning-operational-title">
@@ -232,12 +216,15 @@ function OperationalMonth({ row, onDetails }) {
         <span>Status</span>
         {planningStatus(row.status, row.statusTone)}
       </div>
-      <button className="button secondary" type="button" onClick={onDetails}>
-        <History size={16} aria-hidden="true" />
-        Ver detalhes
-      </button>
     </section>
   );
+}
+
+function planningDisplay(row, key, fallback) {
+  if (row.display && Object.prototype.hasOwnProperty.call(row.display, key)) {
+    return String(row.display[key] ?? '');
+  }
+  return fallback;
 }
 
 function PlanningTable({ rows }) {
@@ -292,9 +279,9 @@ function PlanningTable({ rows }) {
         <table className="planning-table exact-columns" ref={tableRef}>
           <thead>
             <tr>
-              <th className="header-period sticky-month">Mês Compra</th>
-              <th className="header-period">Mês de Consumo</th>
-              <th className="header-period">Trans. Mês Compra</th>
+              <th className="header-period sticky-month">Mês de Consumo</th>
+              <th className="header-period">Mês Compra</th>
+              <th className="header-period">Trans. Mês Consumo</th>
               <th className="header-16">Unidades - 16M</th>
               <th className="header-16">Caixa - 16M</th>
               <th className="header-16">Valor - 16M</th>
@@ -307,30 +294,32 @@ function PlanningTable({ rows }) {
               <th className="header-balance">Consumo</th>
               <th className="header-balance">Saldo</th>
               <th className="header-date">Data Pedido</th>
-              <th className="header-date">Data Entrega Prevista</th>
+              <th className="header-date">Data Entrega/Prevista</th>
             </tr>
           </thead>
           <tbody>
             {rows.map((row) => (
               <tr key={row.id}>
-                <td className="sticky-month"><strong>{formatPlanningMonth(row.monthKey)}</strong></td>
-                <td>{formatPlanningMonth(row.consumptionMonth)}</td>
-                <td>{formatInteger(row.transactions)}</td>
-                <td>{formatInteger(row.units16)}</td>
-                <td>{formatInteger(row.boxes16)}</td>
-                <td>{formatCurrency(row.value16)}</td>
-                <td>{formatInteger(row.units30)}</td>
-                <td>{formatInteger(row.boxes30)}</td>
-                <td>{formatCurrency(row.value30)}</td>
-                <td>{formatInteger(row.totalUnits)}</td>
-                <td>{formatInteger(row.totalBoxes)}</td>
-                <td className="planning-total-value">{formatCurrency(row.totalValue)}</td>
-                <td>{Number.isFinite(row.consumptionUnits) ? formatInteger(row.consumptionUnits) : '-'}</td>
-                <td className={Number.isFinite(row.balanceUnits) && row.balanceUnits < 0 ? 'balance-negative' : ''}>
-                  {Number.isFinite(row.balanceUnits) ? formatInteger(row.balanceUnits) : '-'}
+                <td className="sticky-month">
+                  <strong>{planningDisplay(row, 'consumptionMonth', formatPlanningMonth(row.consumptionMonth))}</strong>
                 </td>
-                <td>{formatPlanningDate(row.orderDate)}</td>
-                <td>{formatPlanningDate(row.deliveryDate)}</td>
+                <td>{planningDisplay(row, 'purchaseMonth', formatPlanningMonth(row.purchaseMonth))}</td>
+                <td>{planningDisplay(row, 'transactions', formatInteger(row.transactions))}</td>
+                <td>{planningDisplay(row, 'units16', formatInteger(row.units16))}</td>
+                <td>{planningDisplay(row, 'boxes16', formatInteger(row.boxes16))}</td>
+                <td>{planningDisplay(row, 'value16', formatCurrency(row.value16))}</td>
+                <td>{planningDisplay(row, 'units30', formatInteger(row.units30))}</td>
+                <td>{planningDisplay(row, 'boxes30', formatInteger(row.boxes30))}</td>
+                <td>{planningDisplay(row, 'value30', formatCurrency(row.value30))}</td>
+                <td>{planningDisplay(row, 'totalUnits', formatInteger(row.totalUnits))}</td>
+                <td>{planningDisplay(row, 'totalBoxes', formatInteger(row.totalBoxes))}</td>
+                <td className="planning-total-value">{planningDisplay(row, 'totalValue', formatCurrency(row.totalValue))}</td>
+                <td>{planningDisplay(row, 'consumption', Number.isFinite(row.consumptionUnits) ? formatInteger(row.consumptionUnits) : '-')}</td>
+                <td className={Number.isFinite(row.balanceUnits) && row.balanceUnits < 0 ? 'balance-negative' : ''}>
+                  {planningDisplay(row, 'balance', Number.isFinite(row.balanceUnits) ? formatInteger(row.balanceUnits) : '-')}
+                </td>
+                <td>{planningDisplay(row, 'orderDate', formatPlanningDate(row.orderDate))}</td>
+                <td>{planningDisplay(row, 'deliveryDate', formatPlanningDate(row.deliveryDate))}</td>
               </tr>
             ))}
           </tbody>
@@ -356,8 +345,6 @@ export default function Purchases({
     onlyWithoutPurchase: false,
     onlyWithConsumption: false,
   });
-  const tableRef = useRef(null);
-
   const planning = useMemo(
     () => buildPurchasePlanning(planningRecords, bobbinRecords, rawPurchases, selectedYear),
     [planningRecords, bobbinRecords, rawPurchases, selectedYear],
@@ -381,8 +368,6 @@ export default function Purchases({
     () => getOperationalMonth(planning.rows, planning.year),
     [planning.rows, planning.year],
   );
-  const criticalMonths = planning.rows.filter((row) => row.status === 'Crítico').length;
-
   function updateFilter(field, value) {
     setFilters((current) => ({ ...current, [field]: value }));
   }
@@ -399,22 +384,22 @@ export default function Purchases({
 
   function exportMonthlyCsv() {
     downloadCsv(`planejamento-mensal-${planning.year}.csv`, planning.rows, [
-      { label: 'Mês Compra', value: (row) => formatPlanningMonth(row.monthKey) },
-      { label: 'Mês de Consumo', value: (row) => formatPlanningMonth(row.consumptionMonth) },
-      { label: 'Trans. Mês Compra', key: 'transactions' },
-      { label: 'Unidades - 16M', key: 'units16' },
-      { label: 'Caixa - 16M', key: 'boxes16' },
-      { label: 'Valor - 16M', key: 'value16' },
-      { label: 'Unidades - 30M', key: 'units30' },
-      { label: 'Caixa - 30M', key: 'boxes30' },
-      { label: 'Valor - 30M', key: 'value30' },
-      { label: 'Total 16 M e 30M', key: 'totalUnits' },
-      { label: 'Total caixas', key: 'totalBoxes' },
-      { label: 'Total Valor', key: 'totalValue' },
-      { label: 'Consumo', key: 'consumptionUnits' },
-      { label: 'Saldo', key: 'balanceUnits' },
-      { label: 'Data Pedido', value: (row) => formatPlanningDate(row.orderDate) },
-      { label: 'Data Entrega Prevista', value: (row) => formatPlanningDate(row.deliveryDate) },
+      { label: 'Mês de Consumo', value: (row) => planningDisplay(row, 'consumptionMonth', formatPlanningMonth(row.consumptionMonth)) },
+      { label: 'Mês Compra', value: (row) => planningDisplay(row, 'purchaseMonth', formatPlanningMonth(row.purchaseMonth)) },
+      { label: 'Trans. Mês Consumo', value: (row) => planningDisplay(row, 'transactions', formatInteger(row.transactions)) },
+      { label: 'Unidades - 16M', value: (row) => planningDisplay(row, 'units16', formatInteger(row.units16)) },
+      { label: 'Caixa - 16M', value: (row) => planningDisplay(row, 'boxes16', formatInteger(row.boxes16)) },
+      { label: 'Valor - 16M', value: (row) => planningDisplay(row, 'value16', formatCurrency(row.value16)) },
+      { label: 'Unidades - 30M', value: (row) => planningDisplay(row, 'units30', formatInteger(row.units30)) },
+      { label: 'Caixa - 30M', value: (row) => planningDisplay(row, 'boxes30', formatInteger(row.boxes30)) },
+      { label: 'Valor - 30M', value: (row) => planningDisplay(row, 'value30', formatCurrency(row.value30)) },
+      { label: 'Total 16 M e 30M', value: (row) => planningDisplay(row, 'totalUnits', formatInteger(row.totalUnits)) },
+      { label: 'Total caixas', value: (row) => planningDisplay(row, 'totalBoxes', formatInteger(row.totalBoxes)) },
+      { label: 'Total Valor', value: (row) => planningDisplay(row, 'totalValue', formatCurrency(row.totalValue)) },
+      { label: 'Consumo', value: (row) => planningDisplay(row, 'consumption', Number.isFinite(row.consumptionUnits) ? formatInteger(row.consumptionUnits) : '-') },
+      { label: 'Saldo', value: (row) => planningDisplay(row, 'balance', Number.isFinite(row.balanceUnits) ? formatInteger(row.balanceUnits) : '-') },
+      { label: 'Data Pedido', value: (row) => planningDisplay(row, 'orderDate', formatPlanningDate(row.orderDate)) },
+      { label: 'Data Entrega/Prevista', value: (row) => planningDisplay(row, 'deliveryDate', formatPlanningDate(row.deliveryDate)) },
     ]);
   }
 
@@ -492,17 +477,13 @@ export default function Purchases({
           units={visibleTotals.totalUnits}
           value={visibleTotals.totalValue}
         />
-        <CriticalSummaryCard count={criticalMonths} />
       </section>
 
       {operationalMonth ? (
-        <OperationalMonth
-          row={operationalMonth}
-          onDetails={() => tableRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
-        />
+        <OperationalMonth row={operationalMonth} />
       ) : null}
 
-      <section className="planning-table-section" ref={tableRef}>
+      <section className="planning-table-section">
         <div className="section-heading compact">
           <div>
             <h3>Planejamento mensal consolidado</h3>
