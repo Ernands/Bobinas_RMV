@@ -29,6 +29,7 @@ import {
   getOperationalMonth,
   getPlanningTotalsForType,
 } from '../utils/purchasePlanning';
+import { addMonths } from '../utils/dateUtils';
 
 const STATUS_OPTIONS = [
   'Coberto',
@@ -95,9 +96,9 @@ function buildOperationalFlow(row, rows) {
     return null;
   }
 
-  const currentIndex = rows.findIndex((item) => item.monthKey === row.monthKey);
-  const previousRow = currentIndex > 0 ? rows[currentIndex - 1] : null;
-  const nextRow = currentIndex >= 0 ? rows[currentIndex + 1] : null;
+  const rowsByMonth = new Map(rows.map((item) => [item.monthKey, item]));
+  const previousRow = rowsByMonth.get(addMonths(row.monthKey, -1)) || null;
+  const nextRow = rowsByMonth.get(addMonths(row.monthKey, 1)) || null;
   const previousBalance16 = Number.isFinite(previousRow?.balance16Units) ? previousRow.balance16Units : 0;
   const previousBalance30 = Number.isFinite(previousRow?.balance30Units) ? previousRow.balance30Units : 0;
   const opening16Units = (Number(row.units16) || 0) + previousBalance16;
@@ -349,8 +350,8 @@ function StockFlowMetric({ icon: Icon, label, part, status, tone }) {
 }
 
 function StockFlowChart({ flow }) {
-  const chartTop = 72;
-  const chartBottom = 276;
+  const chartTop = 42;
+  const chartBottom = 282;
   const bars = [
     {
       key: 'opening',
@@ -408,7 +409,7 @@ function StockFlowChart({ flow }) {
 
   const zeroY = y(0);
   const ticks = [extent, extent / 2, 0, -extent / 2, -extent];
-  const barWidth = 118;
+  const barWidth = 156;
 
   function renderSegments(bar) {
     let positiveBase = 0;
@@ -443,6 +444,17 @@ function StockFlowChart({ flow }) {
       });
   }
 
+  function barLabelY(bar) {
+    const positiveTotal = [bar.part.units16, bar.part.units30]
+      .filter((value) => value > 0)
+      .reduce((sum, value) => sum + value, 0);
+    const negativeTotal = [bar.part.units16, bar.part.units30]
+      .filter((value) => value < 0)
+      .reduce((sum, value) => sum + value, 0);
+    const reference = positiveTotal || negativeTotal || bar.part.totalUnits;
+    return y(reference / 2);
+  }
+
   return (
     <div className="stock-flow-chart">
       <div className="stock-flow-chart-title">
@@ -467,14 +479,18 @@ function StockFlowChart({ flow }) {
 
         {bars.map((bar, index) => (
           <g key={bar.key}>
-            <text className="stock-flow-bar-heading" textAnchor="middle" x={bar.x} y="24">{bar.title}</text>
-            <text className={`stock-flow-bar-value ${bar.valueClass}`} textAnchor="middle" x={bar.x} y="46">
-              {formatInteger(bar.part.totalBoxes)} cx
-            </text>
-            <text className="stock-flow-bar-units" textAnchor="middle" x={bar.x} y="63">
-              {formatInteger(bar.part.totalUnits)} un.
-            </text>
             {renderSegments(bar)}
+            {bar.part.totalBoxes ? (
+              <text
+                className="stock-flow-bar-inside-label"
+                dominantBaseline="middle"
+                textAnchor="middle"
+                x={bar.x}
+                y={barLabelY(bar)}
+              >
+                {formatInteger(bar.part.totalBoxes)} cx
+              </text>
+            ) : null}
             <text className="stock-flow-category" textAnchor="middle" x={bar.x} y="314">{bar.label}</text>
             {index < bars.length - 1 ? (
               <line
@@ -557,7 +573,7 @@ function StockFlowComposition({ flow }) {
         </p>
         <p>
           <PackageCheck size={17} aria-hidden="true" />
-          <span><strong>Estoque provável</strong> = compra do mês seguinte + saldo do mês</span>
+          <span><strong>Estoque provável</strong> = (saldo anterior + compra do mês - consumo do mês) + compra do mês seguinte</span>
         </p>
       </section>
     </div>

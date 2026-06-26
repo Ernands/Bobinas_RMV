@@ -1612,28 +1612,36 @@ tbody tr:last-child td {
 
 .purchase-summary-card {
   --summary-color: #2563eb;
-  --summary-soft: #eff6ff;
+  --summary-soft: rgba(255, 255, 255, 0.58);
   display: grid;
   min-height: 154px;
   grid-template-columns: 46px minmax(0, 1fr);
   gap: 13px;
   align-items: center;
-  border: 1px solid #dbeafe;
+  border: 1px solid #bfdbfe;
   border-top: 3px solid var(--summary-color);
   border-radius: 8px;
-  background: #ffffff;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.82), rgba(255, 255, 255, 0.38)),
+    #dbeafe;
   padding: 16px;
-  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.035);
+  box-shadow: 0 10px 26px rgba(37, 99, 235, 0.08);
 }
 
 .purchase-summary-card.blue-medium {
   --summary-color: #0f6fdc;
-  --summary-soft: #eaf4ff;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.74), rgba(255, 255, 255, 0.28)),
+    #bfdbfe;
 }
 
 .purchase-summary-card.navy {
   --summary-color: #0f2f5c;
-  --summary-soft: #eef2f7;
+  --summary-soft: rgba(255, 255, 255, 0.64);
+  border-color: #93c5fd;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.66), rgba(255, 255, 255, 0.22)),
+    #93c5fd;
 }
 
 .purchase-summary-card.red {
@@ -3400,38 +3408,15 @@ tbody tr:last-child td {
   font-weight: 650;
 }
 
-.stock-flow-bar-heading {
-  fill: #334155;
-  font-size: 10px;
-  font-weight: 850;
-}
-
-.stock-flow-bar-value {
-  fill: #0f2f5c;
+.stock-flow-bar-inside-label {
+  fill: #ffffff;
   font-size: 15px;
-  font-weight: 850;
-}
-
-.stock-flow-bar-value.opening {
-  fill: #2563eb;
-}
-
-.stock-flow-bar-value.consumption {
-  fill: #ea580c;
-}
-
-.stock-flow-bar-value.negative {
-  fill: #dc2626;
-}
-
-.stock-flow-bar-value.probable {
-  fill: #16a34a;
-}
-
-.stock-flow-bar-units {
-  fill: #64748b;
-  font-size: 11px;
-  font-weight: 750;
+  font-weight: 900;
+  letter-spacing: 0;
+  paint-order: stroke;
+  pointer-events: none;
+  stroke: rgba(15, 23, 42, 0.22);
+  stroke-width: 2.5px;
 }
 
 .stock-flow-composition {
