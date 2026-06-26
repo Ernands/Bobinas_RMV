@@ -1,5 +1,5 @@
 import { BOBBIN_CONFIGS, parseNumber } from './calculations';
-import { parseDate } from './dateUtils';
+import { addMonths, parseDate } from './dateUtils';
 import { normalizeText } from './normalization';
 
 const MONTH_NUMBERS = {
@@ -41,7 +41,7 @@ const ANNUAL_ALIASES = {
 };
 
 const MONTHLY_ALIASES = {
-  month: ['mes de consumo', 'mes consumo', 'mes compra'],
+  consumptionMonth: ['mes de consumo', 'mes consumo'],
   purchaseMonth: ['mes compra'],
   transactions: ['trans mes consumo', 'transacoes mes consumo', 'trans mes compra', 'transacoes mes compra'],
   units16: ['unidades 16m'],
@@ -141,7 +141,10 @@ function isAnnualRow(row) {
 function isMonthlyHeader(row) {
   const labels = new Set(Object.values(row || {}).map(toColumnKey).filter(Boolean));
   return (
-    MONTHLY_ALIASES.month.some((alias) => labels.has(toColumnKey(alias)))
+    (
+      MONTHLY_ALIASES.consumptionMonth.some((alias) => labels.has(toColumnKey(alias)))
+      || MONTHLY_ALIASES.purchaseMonth.some((alias) => labels.has(toColumnKey(alias)))
+    )
     && (
       MONTHLY_ALIASES.totalValue.some((alias) => labels.has(toColumnKey(alias)))
       || MONTHLY_ALIASES.value16.some((alias) => labels.has(toColumnKey(alias)))
@@ -177,7 +180,7 @@ function normalizeAnnualRow(row, index) {
 
 function normalizeMonthlyRow(row, columnMap, index) {
   const raw = {
-    month: readMonthlyValue(row, columnMap, MONTHLY_ALIASES.month),
+    consumptionMonth: readMonthlyValue(row, columnMap, MONTHLY_ALIASES.consumptionMonth),
     purchaseMonth: readMonthlyValue(row, columnMap, MONTHLY_ALIASES.purchaseMonth),
     transactions: readMonthlyValue(row, columnMap, MONTHLY_ALIASES.transactions),
     units16: readMonthlyValue(row, columnMap, MONTHLY_ALIASES.units16),
@@ -198,8 +201,10 @@ function normalizeMonthlyRow(row, columnMap, index) {
     orderDate: readMonthlyValue(row, columnMap, MONTHLY_ALIASES.orderDate),
     deliveryDate: readMonthlyValue(row, columnMap, MONTHLY_ALIASES.deliveryDate),
   };
-  const monthKey = parseMonthCell(raw.month);
-  const purchaseMonth = parseMonthCell(raw.purchaseMonth) || monthKey;
+  const explicitConsumptionMonth = parseMonthCell(raw.consumptionMonth);
+  const parsedPurchaseMonth = parseMonthCell(raw.purchaseMonth);
+  const monthKey = explicitConsumptionMonth || (parsedPurchaseMonth ? addMonths(parsedPurchaseMonth, 2) : '');
+  const purchaseMonth = parsedPurchaseMonth || (monthKey ? addMonths(monthKey, -2) : '');
   const orderDate = parseDate(raw.orderDate);
   const deliveryDate = parseDate(raw.deliveryDate);
   const consumption16Units = optionalNumber(raw.consumption16);

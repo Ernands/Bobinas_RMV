@@ -628,7 +628,10 @@ function OperationalMonth({ flow, row, statusMode }) {
 
 function planningDisplay(row, key, fallback) {
   if (row.display && Object.prototype.hasOwnProperty.call(row.display, key)) {
-    return String(row.display[key] ?? '');
+    const value = String(row.display[key] ?? '').trim();
+    if (value) {
+      return value;
+    }
   }
   return fallback;
 }
@@ -685,7 +688,8 @@ function PlanningTable({ currentMonthKey, rows }) {
         <table className="planning-table exact-columns" ref={tableRef}>
           <thead>
             <tr>
-              <th className="header-period sticky-month">Mês Compra</th>
+              <th className="header-period sticky-month">Mês de Consumo</th>
+              <th className="header-period">Mês Compra</th>
               <th className="header-period">Trans. Mês Consumo</th>
               <th className="header-16">Unidades - 16M</th>
               <th className="header-16">Caixa - 16M</th>
@@ -717,9 +721,10 @@ function PlanningTable({ currentMonthKey, rows }) {
                 key={row.id}
               >
                 <td className="sticky-month">
-                  <strong>{planningDisplay(row, 'month', formatPlanningMonth(row.monthKey))}</strong>
+                  <strong>{planningDisplay(row, 'consumptionMonth', formatPlanningMonth(row.monthKey))}</strong>
                   {isCurrentMonth ? <small>Mês atual</small> : null}
                 </td>
+                <td>{planningDisplay(row, 'purchaseMonth', formatPlanningMonth(row.purchaseMonth))}</td>
                 <td>{planningDisplay(row, 'transactions', formatInteger(row.transactions))}</td>
                 <td>{planningDisplay(row, 'units16', formatInteger(row.units16))}</td>
                 <td>{planningDisplay(row, 'boxes16', formatInteger(row.boxes16))}</td>
@@ -831,7 +836,8 @@ export default function Purchases({
 
   function exportMonthlyCsv() {
     downloadCsv(`planejamento-mensal-${planning.year}.csv`, planning.rows, [
-      { label: 'Mês Compra', value: (row) => planningDisplay(row, 'month', formatPlanningMonth(row.monthKey)) },
+      { label: 'Mês de Consumo', value: (row) => planningDisplay(row, 'consumptionMonth', formatPlanningMonth(row.monthKey)) },
+      { label: 'Mês Compra', value: (row) => planningDisplay(row, 'purchaseMonth', formatPlanningMonth(row.purchaseMonth)) },
       { label: 'Trans. Mês Consumo', value: (row) => planningDisplay(row, 'transactions', formatInteger(row.transactions)) },
       { label: 'Unidades - 16M', value: (row) => planningDisplay(row, 'units16', formatInteger(row.units16)) },
       { label: 'Caixa - 16M', value: (row) => planningDisplay(row, 'boxes16', formatInteger(row.boxes16)) },

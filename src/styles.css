@@ -2115,7 +2115,7 @@ tbody tr:last-child td {
 
 .planning-table.exact-columns {
   width: 100%;
-  min-width: 1420px;
+  min-width: 1490px;
   border-collapse: separate;
   border-spacing: 0;
   table-layout: fixed;
@@ -2144,30 +2144,34 @@ tbody tr:last-child td {
 }
 
 .planning-table.exact-columns th:nth-child(2) {
+  width: 82px;
+}
+
+.planning-table.exact-columns th:nth-child(3) {
   width: 86px;
 }
 
-.planning-table.exact-columns th:nth-child(3),
 .planning-table.exact-columns th:nth-child(4),
-.planning-table.exact-columns th:nth-child(6),
+.planning-table.exact-columns th:nth-child(5),
 .planning-table.exact-columns th:nth-child(7),
-.planning-table.exact-columns th:nth-child(9),
+.planning-table.exact-columns th:nth-child(8),
 .planning-table.exact-columns th:nth-child(10),
-.planning-table.exact-columns th:nth-child(12),
+.planning-table.exact-columns th:nth-child(11),
 .planning-table.exact-columns th:nth-child(13),
 .planning-table.exact-columns th:nth-child(14),
-.planning-table.exact-columns th:nth-child(15) {
+.planning-table.exact-columns th:nth-child(15),
+.planning-table.exact-columns th:nth-child(16) {
   width: 72px;
 }
 
-.planning-table.exact-columns th:nth-child(5),
-.planning-table.exact-columns th:nth-child(8),
-.planning-table.exact-columns th:nth-child(11) {
+.planning-table.exact-columns th:nth-child(6),
+.planning-table.exact-columns th:nth-child(9),
+.planning-table.exact-columns th:nth-child(12) {
   width: 102px;
 }
 
-.planning-table.exact-columns th:nth-child(16),
-.planning-table.exact-columns th:nth-child(17) {
+.planning-table.exact-columns th:nth-child(17),
+.planning-table.exact-columns th:nth-child(18) {
   width: 92px;
 }
 
@@ -2192,19 +2196,19 @@ tbody tr:last-child td {
   background: #e66a18;
 }
 
-.planning-table.exact-columns td:nth-child(3),
 .planning-table.exact-columns td:nth-child(4),
-.planning-table.exact-columns td:nth-child(5) {
+.planning-table.exact-columns td:nth-child(5),
+.planning-table.exact-columns td:nth-child(6) {
   background: #f4f8fd;
 }
 
-.planning-table.exact-columns td:nth-child(6),
 .planning-table.exact-columns td:nth-child(7),
-.planning-table.exact-columns td:nth-child(8) {
+.planning-table.exact-columns td:nth-child(8),
+.planning-table.exact-columns td:nth-child(9) {
   background: #eef5fd;
 }
 
-.planning-table.exact-columns td:nth-child(11) {
+.planning-table.exact-columns td:nth-child(12) {
   background: #122f58;
   color: #ffffff !important;
 }
@@ -2364,7 +2368,7 @@ tbody tr:last-child td {
   color: #c2410c !important;
 }
 
-.planning-table tbody tr.future-month td:nth-child(11) {
+.planning-table tbody tr.future-month td:nth-child(12) {
   color: #fed7aa !important;
 }
 
