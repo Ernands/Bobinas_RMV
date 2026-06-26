@@ -1,6 +1,7 @@
 import {
   BOBBIN_CONFIGS,
   calculateCost,
+  ceilBoxes,
   getBobbinKey,
 } from './calculations';
 import {
@@ -44,6 +45,10 @@ function emptyMonth(monthKey) {
     totalUnits: 0,
     totalBoxes: 0,
     totalValue: 0,
+    consumption16Units: null,
+    balance16Units: null,
+    consumption30Units: null,
+    balance30Units: null,
     consumptionUnits: null,
     balanceUnits: null,
     orderDate: null,
@@ -90,15 +95,67 @@ function monthlyManualFallback(purchases, year) {
   return byMonth;
 }
 
-function buildBobbinConsumption(records, year) {
+function normalizeStatus(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase();
+}
+
+function statusMatches(record, statusMode) {
+  const status = normalizeStatus(record.status);
+  if (statusMode === 'sent') {
+    return status === 'enviado';
+  }
+  if (statusMode === 'pending') {
+    return status === 'pendente';
+  }
+  return true;
+}
+
+function buildBobbinConsumption(records, year, statusMode = 'sent') {
   const months = new Map();
   records.forEach((record) => {
     if (!record.openingMonth?.startsWith(`${year}-`)) {
       return;
     }
-    months.set(record.openingMonth, (months.get(record.openingMonth) || 0) + (record.quantity || 0));
+    if (!statusMatches(record, statusMode)) {
+      return;
+    }
+    const current = months.get(record.openingMonth) || {
+      units16: 0,
+      units30: 0,
+      totalUnits: 0,
+    };
+    const quantity = Number(record.quantity) || 0;
+    const typeKey = getBobbinKey(record.bobbinType);
+    if (typeKey === '16') {
+      current.units16 += quantity;
+    } else if (typeKey === '30') {
+      current.units30 += quantity;
+    }
+    current.totalUnits += quantity;
+    months.set(record.openingMonth, current);
   });
   return months;
+}
+
+function typedTotal(first, second, fallback = null) {
+  const hasTypedValue = Number.isFinite(first) || Number.isFinite(second);
+  if (hasTypedValue) {
+    return (Number(first) || 0) + (Number(second) || 0);
+  }
+  return Number.isFinite(fallback) ? fallback : null;
+}
+
+function signedCeilBoxes(units, type) {
+  const unitsPerBox = BOBBIN_CONFIGS[type]?.unitsPerBox || 1;
+  if (!Number.isFinite(units) || units === 0) {
+    return 0;
+  }
+  const boxes = ceilBoxes(Math.abs(units), unitsPerBox);
+  return units < 0 ? -boxes : boxes;
 }
 
 function statusForRow(row) {
@@ -126,9 +183,20 @@ function statusForRow(row) {
 }
 
 function enrichMonthlyRow(row) {
-  const status = statusForRow(row);
-  return {
+  const consumptionUnits = typedTotal(row.consumption16Units, row.consumption30Units, row.consumptionUnits);
+  const balanceUnits = typedTotal(row.balance16Units, row.balance30Units, row.balanceUnits);
+  const baseRow = {
     ...row,
+    consumptionUnits,
+    balanceUnits,
+  };
+  const status = statusForRow(baseRow);
+  return {
+    ...baseRow,
+    consumption16Boxes: signedCeilBoxes(row.consumption16Units, '16'),
+    consumption30Boxes: signedCeilBoxes(row.consumption30Units, '30'),
+    balance16Boxes: signedCeilBoxes(row.balance16Units, '16'),
+    balance30Boxes: signedCeilBoxes(row.balance30Units, '30'),
     ...status,
     monthLabel: formatMonth(row.monthKey),
     consumptionMonthLabel: formatMonth(row.consumptionMonth),
@@ -225,7 +293,11 @@ export function buildPurchasePlanning(
   bobbinRecords = [],
   purchases = [],
   selectedYear = '',
+  options = {},
 ) {
+  const {
+    consumptionStatusMode = 'sent',
+  } = options;
   const annualRows = planningRecords.filter((record) => record.rowType === 'annual');
   const sheetMonthlyRows = planningRecords.filter((record) => record.rowType === 'monthly');
   const years = Array.from(new Set([
@@ -241,23 +313,46 @@ export function buildPurchasePlanning(
       .map((row) => [row.consumptionMonth, row]),
   );
   const manualByMonth = monthlyManualFallback(purchases, year);
-  const bobbinConsumption = buildBobbinConsumption(bobbinRecords, year);
+  const bobbinConsumption = buildBobbinConsumption(bobbinRecords, year, consumptionStatusMode);
+  const hasFilteredConsumptionSource = bobbinRecords.length > 0;
 
   const rows = monthKeysForYear(year).map((monthKey) => {
     const sheetRow = sheetByMonth.get(monthKey);
     if (sheetRow) {
-      return enrichMonthlyRow({ ...emptyMonth(monthKey), ...sheetRow, source: 'sheet' });
+      const filteredConsumption = bobbinConsumption.get(monthKey);
+      return enrichMonthlyRow({
+        ...emptyMonth(monthKey),
+        ...sheetRow,
+        filteredConsumptionAvailable: hasFilteredConsumptionSource,
+        filteredConsumption16Units: filteredConsumption?.units16 || 0,
+        filteredConsumption30Units: filteredConsumption?.units30 || 0,
+        filteredConsumptionUnits: filteredConsumption?.totalUnits || 0,
+        source: 'sheet',
+      });
     }
     const manualRow = manualByMonth.get(monthKey);
+    const filteredConsumption = bobbinConsumption.get(monthKey);
     if (manualRow) {
       return enrichMonthlyRow({
         ...manualRow,
-        consumptionUnits: bobbinConsumption.get(monthKey) || null,
+        consumption16Units: filteredConsumption?.units16 ?? null,
+        consumption30Units: filteredConsumption?.units30 ?? null,
+        consumptionUnits: filteredConsumption?.totalUnits ?? null,
+        filteredConsumptionAvailable: hasFilteredConsumptionSource,
+        filteredConsumption16Units: filteredConsumption?.units16 || 0,
+        filteredConsumption30Units: filteredConsumption?.units30 || 0,
+        filteredConsumptionUnits: filteredConsumption?.totalUnits || 0,
       });
     }
     return enrichMonthlyRow({
       ...emptyMonth(monthKey),
-      consumptionUnits: bobbinConsumption.get(monthKey) || null,
+      consumption16Units: filteredConsumption?.units16 ?? null,
+      consumption30Units: filteredConsumption?.units30 ?? null,
+      consumptionUnits: filteredConsumption?.totalUnits ?? null,
+      filteredConsumptionAvailable: hasFilteredConsumptionSource,
+      filteredConsumption16Units: filteredConsumption?.units16 || 0,
+      filteredConsumption30Units: filteredConsumption?.units30 || 0,
+      filteredConsumptionUnits: filteredConsumption?.totalUnits || 0,
       source: planningRecords.length ? 'sheet' : 'empty',
     });
   });

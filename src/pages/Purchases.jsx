@@ -14,7 +14,12 @@ import {
   RotateCcw,
 } from 'lucide-react';
 import PurchaseAnnualSummary from '../components/PurchaseAnnualSummary';
-import { formatCurrency, formatInteger } from '../utils/calculations';
+import {
+  BOBBIN_CONFIGS,
+  ceilBoxes,
+  formatCurrency,
+  formatInteger,
+} from '../utils/calculations';
 import { downloadCsv } from '../utils/csvExport';
 import {
   buildPurchasePlanning,
@@ -32,6 +37,119 @@ const STATUS_OPTIONS = [
   'Sem compra planejada',
   'Sem dados suficientes',
 ];
+
+const STATUS_MODE_OPTIONS = [
+  { value: 'sent', label: 'Enviado' },
+  { value: 'pending', label: 'Pendente' },
+  { value: 'all', label: 'Todos' },
+];
+
+function monthKeyFromToday() {
+  const today = new Date();
+  return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function signedBoxesFromUnits(units, type) {
+  if (!Number.isFinite(units) || units === 0) {
+    return 0;
+  }
+  const boxes = ceilBoxes(Math.abs(units), BOBBIN_CONFIGS[type].unitsPerBox);
+  return units < 0 ? -boxes : boxes;
+}
+
+function buildStockPart({ boxes16, boxes30, units16, units30 }) {
+  const safeBoxes16 = Number.isFinite(boxes16) ? boxes16 : signedBoxesFromUnits(units16, '16');
+  const safeBoxes30 = Number.isFinite(boxes30) ? boxes30 : signedBoxesFromUnits(units30, '30');
+  const safeUnits16 = Number.isFinite(units16) ? units16 : 0;
+  const safeUnits30 = Number.isFinite(units30) ? units30 : 0;
+
+  return {
+    boxes16: safeBoxes16,
+    boxes30: safeBoxes30,
+    totalBoxes: safeBoxes16 + safeBoxes30,
+    units16: safeUnits16,
+    units30: safeUnits30,
+    totalUnits: safeUnits16 + safeUnits30,
+  };
+}
+
+function getConsumptionUnits(row, type) {
+  const field = type === '16' ? 'consumption16Units' : 'consumption30Units';
+  const filteredField = type === '16' ? 'filteredConsumption16Units' : 'filteredConsumption30Units';
+  if (row?.filteredConsumptionAvailable && Number.isFinite(row[filteredField])) {
+    return row[filteredField];
+  }
+  return Number.isFinite(row?.[field]) ? row[field] : 0;
+}
+
+function getBalanceUnits(row, type, openingUnits, consumptionUnits) {
+  const field = type === '16' ? 'balance16Units' : 'balance30Units';
+  if (row?.filteredConsumptionAvailable) {
+    return openingUnits - consumptionUnits;
+  }
+  return Number.isFinite(row?.[field]) ? row[field] : openingUnits - consumptionUnits;
+}
+
+function buildOperationalFlow(row, rows) {
+  if (!row) {
+    return null;
+  }
+
+  const currentIndex = rows.findIndex((item) => item.monthKey === row.monthKey);
+  const previousRow = currentIndex > 0 ? rows[currentIndex - 1] : null;
+  const nextRow = currentIndex >= 0 ? rows[currentIndex + 1] : null;
+  const previousBalance16 = Number.isFinite(previousRow?.balance16Units) ? previousRow.balance16Units : 0;
+  const previousBalance30 = Number.isFinite(previousRow?.balance30Units) ? previousRow.balance30Units : 0;
+  const opening16Units = (Number(row.units16) || 0) + previousBalance16;
+  const opening30Units = (Number(row.units30) || 0) + previousBalance30;
+  const consumption16Units = getConsumptionUnits(row, '16');
+  const consumption30Units = getConsumptionUnits(row, '30');
+  const balance16Units = getBalanceUnits(row, '16', opening16Units, consumption16Units);
+  const balance30Units = getBalanceUnits(row, '30', opening30Units, consumption30Units);
+  const probable16Units = (Number(nextRow?.units16) || 0) + balance16Units;
+  const probable30Units = (Number(nextRow?.units30) || 0) + balance30Units;
+
+  return {
+    monthKey: row.monthKey,
+    label: formatPlanningMonth(row.monthKey),
+    purchases: buildStockPart({
+      boxes16: row.boxes16,
+      boxes30: row.boxes30,
+      units16: row.units16,
+      units30: row.units30,
+    }),
+    previousBalance: buildStockPart({
+      units16: previousBalance16,
+      units30: previousBalance30,
+    }),
+    opening: buildStockPart({
+      boxes16: row.boxes16 + signedBoxesFromUnits(previousBalance16, '16'),
+      boxes30: row.boxes30 + signedBoxesFromUnits(previousBalance30, '30'),
+      units16: opening16Units,
+      units30: opening30Units,
+    }),
+    consumption: buildStockPart({
+      units16: consumption16Units,
+      units30: consumption30Units,
+    }),
+    balance: buildStockPart({
+      units16: balance16Units,
+      units30: balance30Units,
+    }),
+    probable: buildStockPart({
+      boxes16: (Number(nextRow?.boxes16) || 0) + signedBoxesFromUnits(balance16Units, '16'),
+      boxes30: (Number(nextRow?.boxes30) || 0) + signedBoxesFromUnits(balance30Units, '30'),
+      units16: probable16Units,
+      units30: probable30Units,
+    }),
+    nextPurchase: buildStockPart({
+      boxes16: nextRow?.boxes16 || 0,
+      boxes30: nextRow?.boxes30 || 0,
+      units16: nextRow?.units16 || 0,
+      units30: nextRow?.units30 || 0,
+    }),
+  };
+}
 
 function planningStatus(status, tone) {
   return <span className={`planning-status ${tone}`}>{status}</span>;
@@ -84,12 +202,18 @@ function PlanningFilters({
   onYearChange,
 }) {
   const activeCount = [
+    filters.month,
     filters.status,
     filters.type,
+    filters.statusMode !== 'sent' ? filters.statusMode : '',
     filters.onlyCritical,
     filters.onlyWithoutPurchase,
     filters.onlyWithConsumption,
   ].filter(Boolean).length;
+  const monthOptions = planning.rows.map((row) => ({
+    value: row.monthKey,
+    label: formatPlanningMonth(row.monthKey),
+  }));
 
   return (
     <section className={`planning-filter-panel${isOpen ? ' open' : ' collapsed'}`}>
@@ -122,6 +246,21 @@ function PlanningFilters({
             <span>Ano</span>
             <select value={selectedYear || planning.year} onChange={(event) => onYearChange(event.target.value)}>
               {planning.years.map((year) => <option key={year} value={year}>{year}</option>)}
+            </select>
+          </label>
+          <label className="field">
+            <span>Mês</span>
+            <select value={filters.month} onChange={(event) => onChange('month', event.target.value)}>
+              <option value="">Ano completo</option>
+              {monthOptions.map((month) => <option key={month.value} value={month.value}>{month.label}</option>)}
+            </select>
+          </label>
+          <label className="field">
+            <span>Status</span>
+            <select value={filters.statusMode} onChange={(event) => onChange('statusMode', event.target.value)}>
+              {STATUS_MODE_OPTIONS.map((status) => (
+                <option key={status.value} value={status.value}>{status.label}</option>
+              ))}
             </select>
           </label>
           <label className="field">
@@ -188,7 +327,7 @@ function OperationalValue({ icon: Icon, label, value, detail, tone = '' }) {
   );
 }
 
-function StockFlowMetric({ detail, icon: Icon, label, status, tone, value }) {
+function StockFlowMetric({ icon: Icon, label, part, status, tone }) {
   return (
     <article className={`stock-flow-metric ${tone}`}>
       <span className="stock-flow-metric-icon">
@@ -196,8 +335,13 @@ function StockFlowMetric({ detail, icon: Icon, label, status, tone, value }) {
       </span>
       <div>
         <span>{label}</span>
-        <strong>{value}</strong>
-        <small>{detail}</small>
+        <strong>{formatInteger(part.totalBoxes)} caixas</strong>
+        <small>{formatInteger(part.totalUnits)} unidades</small>
+        <em>
+          16M: {formatInteger(part.boxes16)} cx / {formatInteger(part.units16)} un.
+          <br />
+          30M: {formatInteger(part.boxes30)} cx / {formatInteger(part.units30)} un.
+        </em>
       </div>
       {status ? planningStatus(status.label, status.tone) : null}
     </article>
@@ -205,11 +349,56 @@ function StockFlowMetric({ detail, icon: Icon, label, status, tone, value }) {
 }
 
 function StockFlowChart({ flow }) {
-  const chartTop = 58;
-  const chartBottom = 252;
-  const largestAbsoluteValue = Math.max(1, Math.abs(flow.openingStock), Math.abs(flow.finalBalance));
+  const chartTop = 72;
+  const chartBottom = 276;
+  const bars = [
+    {
+      key: 'opening',
+      title: 'ESTOQUE INICIADO',
+      label: 'Estoque iniciado',
+      part: flow.opening,
+      colors: ['#60A5FA', '#2563EB'],
+      valueClass: 'opening',
+      x: 160,
+    },
+    {
+      key: 'consumption',
+      title: 'CONSUMO DO MÊS',
+      label: 'Consumo',
+      part: flow.consumption,
+      colors: ['#FDBA74', '#EA580C'],
+      valueClass: 'consumption',
+      x: 390,
+    },
+    {
+      key: 'balance',
+      title: 'SALDO DO MÊS',
+      label: 'Saldo',
+      part: flow.balance,
+      colors: flow.balance.totalUnits < 0 ? ['#FCA5A5', '#B91C1C'] : ['#1E3A8A', '#0F172A'],
+      valueClass: flow.balance.totalUnits < 0 ? 'negative' : 'balance',
+      x: 620,
+    },
+    {
+      key: 'probable',
+      title: 'ESTOQUE PROVÁVEL',
+      label: 'Estoque provável',
+      part: flow.probable,
+      colors: flow.probable.totalUnits < 0 ? ['#FED7AA', '#C2410C'] : ['#86EFAC', '#16A34A'],
+      valueClass: flow.probable.totalUnits < 0 ? 'negative' : 'probable',
+      x: 850,
+    },
+  ];
+  const largestAbsoluteValue = Math.max(
+    1,
+    ...bars.flatMap((bar) => {
+      const positive = [bar.part.units16, bar.part.units30].filter((value) => value > 0).reduce((sum, value) => sum + value, 0);
+      const negative = [bar.part.units16, bar.part.units30].filter((value) => value < 0).reduce((sum, value) => sum + value, 0);
+      return [Math.abs(positive), Math.abs(negative), Math.abs(bar.part.totalUnits)];
+    }),
+  );
   const magnitude = 10 ** Math.floor(Math.log10(largestAbsoluteValue));
-  const extent = Math.ceil(largestAbsoluteValue / magnitude) * magnitude;
+  const extent = Math.max(magnitude, Math.ceil(largestAbsoluteValue / magnitude) * magnitude);
   const minValue = -extent;
   const maxValue = extent;
 
@@ -218,122 +407,141 @@ function StockFlowChart({ flow }) {
   }
 
   const zeroY = y(0);
-  const openingY = y(flow.openingStock);
-  const balanceY = y(flow.finalBalance);
-  const openingRectY = Math.min(openingY, zeroY);
-  const openingRectHeight = Math.max(2, Math.abs(zeroY - openingY));
-  const consumptionRectY = Math.min(openingY, balanceY);
-  const consumptionRectHeight = Math.max(2, Math.abs(balanceY - openingY));
-  const balanceRectY = Math.min(zeroY, balanceY);
-  const balanceRectHeight = Math.max(2, Math.abs(balanceY - zeroY));
   const ticks = [extent, extent / 2, 0, -extent / 2, -extent];
+  const barWidth = 118;
+
+  function renderSegments(bar) {
+    let positiveBase = 0;
+    let negativeBase = 0;
+    return [
+      { key: '16', value: bar.part.units16, color: bar.colors[0] },
+      { key: '30', value: bar.part.units30, color: bar.colors[1] },
+    ].filter((segment) => Number.isFinite(segment.value) && segment.value !== 0)
+      .map((segment) => {
+        const start = segment.value >= 0 ? positiveBase : negativeBase;
+        const end = start + segment.value;
+        if (segment.value >= 0) {
+          positiveBase = end;
+        } else {
+          negativeBase = end;
+        }
+        const y1 = y(start);
+        const y2 = y(end);
+        const rectY = Math.min(y1, y2);
+        const height = Math.max(2, Math.abs(y2 - y1));
+        return (
+          <rect
+            fill={segment.color}
+            height={height}
+            key={`${bar.key}-${segment.key}`}
+            rx="5"
+            width={barWidth}
+            x={bar.x - (barWidth / 2)}
+            y={rectY}
+          />
+        );
+      });
+  }
 
   return (
     <div className="stock-flow-chart">
       <div className="stock-flow-chart-title">
         <BarChart3 size={19} aria-hidden="true" />
         <strong>Visão do fluxo de estoque</strong>
-        <span>Unidades</span>
+        <span>{flow.label}</span>
       </div>
       <svg
-        aria-label={`Fluxo de estoque: iniciado em ${formatInteger(flow.openingStock)}, consumo de ${formatInteger(flow.consumption)}, saldo de ${formatInteger(flow.finalBalance)} unidades.`}
+        aria-label={`Fluxo de estoque de ${flow.label}. Estoque iniciado em ${formatInteger(flow.opening.totalBoxes)} caixas, consumo de ${formatInteger(flow.consumption.totalBoxes)} caixas, saldo de ${formatInteger(flow.balance.totalBoxes)} caixas e estoque provável de ${formatInteger(flow.probable.totalBoxes)} caixas.`}
         role="img"
-        viewBox="0 0 920 310"
+        viewBox="0 0 1040 340"
       >
-        <defs>
-          <linearGradient id="stock-opening" x1="0" x2="0" y1="0" y2="1">
-            <stop offset="0%" stopColor="#60A5FA" />
-            <stop offset="100%" stopColor="#2563EB" />
-          </linearGradient>
-          <linearGradient id="stock-consumption" x1="0" x2="0" y1="0" y2="1">
-            <stop offset="0%" stopColor="#FB923C" />
-            <stop offset="100%" stopColor="#EA580C" />
-          </linearGradient>
-          <linearGradient id="stock-balance-positive" x1="0" x2="0" y1="0" y2="1">
-            <stop offset="0%" stopColor="#1E3A8A" />
-            <stop offset="100%" stopColor="#0F172A" />
-          </linearGradient>
-          <linearGradient id="stock-balance-negative" x1="0" x2="0" y1="0" y2="1">
-            <stop offset="0%" stopColor="#DC2626" />
-            <stop offset="100%" stopColor="#991B1B" />
-          </linearGradient>
-        </defs>
-
         {ticks.map((tick) => (
           <g key={tick}>
-            <line className="stock-flow-grid-line" x1="68" x2="876" y1={y(tick)} y2={y(tick)} />
-            <text className="stock-flow-axis-label" textAnchor="end" x="58" y={y(tick) + 4}>
+            <line className="stock-flow-grid-line" x1="72" x2="980" y1={y(tick)} y2={y(tick)} />
+            <text className="stock-flow-axis-label" textAnchor="end" x="62" y={y(tick) + 4}>
               {formatInteger(Math.round(tick))}
             </text>
           </g>
         ))}
-        <line className="stock-flow-zero-line" x1="68" x2="876" y1={zeroY} y2={zeroY} />
+        <line className="stock-flow-zero-line" x1="72" x2="980" y1={zeroY} y2={zeroY} />
 
-        <text className="stock-flow-bar-heading" textAnchor="middle" x="215" y="22">ESTOQUE INICIADO</text>
-        <text className="stock-flow-bar-value opening" textAnchor="middle" x="215" y="43">
-          {formatInteger(flow.openingStock)} un.
-        </text>
-        <rect fill="url(#stock-opening)" height={openingRectHeight} rx="5" width="130" x="150" y={openingRectY} />
-
-        <text className="stock-flow-bar-heading" textAnchor="middle" x="475" y="22">CONSUMO DO MÊS</text>
-        <text className="stock-flow-bar-value consumption" textAnchor="middle" x="475" y="43">
-          -{formatInteger(flow.consumption)} un.
-        </text>
-        <rect fill="url(#stock-consumption)" height={consumptionRectHeight} rx="5" width="130" x="410" y={consumptionRectY} />
-
-        <text className="stock-flow-bar-heading" textAnchor="middle" x="735" y="22">SALDO DO MÊS</text>
-        <text
-          className={`stock-flow-bar-value ${flow.finalBalance < 0 ? 'negative' : 'balance'}`}
-          textAnchor="middle"
-          x="735"
-          y="43"
-        >
-          {formatInteger(flow.finalBalance)} un.
-        </text>
-        <rect
-          fill={`url(#${flow.finalBalance < 0 ? 'stock-balance-negative' : 'stock-balance-positive'})`}
-          height={balanceRectHeight}
-          rx="5"
-          width="130"
-          x="670"
-          y={balanceRectY}
-        />
-
-        <line className="stock-flow-connector" x1="280" x2="410" y1={openingY} y2={openingY} />
-        <line className="stock-flow-connector" x1="540" x2="670" y1={balanceY} y2={balanceY} />
-
-        <text className="stock-flow-category" textAnchor="middle" x="215" y="286">Estoque iniciado</text>
-        <text className="stock-flow-category" textAnchor="middle" x="475" y="286">Consumo</text>
-        <text className="stock-flow-category" textAnchor="middle" x="735" y="286">Saldo final</text>
+        {bars.map((bar, index) => (
+          <g key={bar.key}>
+            <text className="stock-flow-bar-heading" textAnchor="middle" x={bar.x} y="24">{bar.title}</text>
+            <text className={`stock-flow-bar-value ${bar.valueClass}`} textAnchor="middle" x={bar.x} y="46">
+              {formatInteger(bar.part.totalBoxes)} cx
+            </text>
+            <text className="stock-flow-bar-units" textAnchor="middle" x={bar.x} y="63">
+              {formatInteger(bar.part.totalUnits)} un.
+            </text>
+            {renderSegments(bar)}
+            <text className="stock-flow-category" textAnchor="middle" x={bar.x} y="314">{bar.label}</text>
+            {index < bars.length - 1 ? (
+              <line
+                className="stock-flow-connector"
+                x1={bar.x + (barWidth / 2)}
+                x2={bars[index + 1].x - (barWidth / 2)}
+                y1={y(bar.part.totalUnits)}
+                y2={y(bar.part.totalUnits)}
+              />
+            ) : null}
+          </g>
+        ))}
       </svg>
     </div>
   );
 }
 
 function StockFlowComposition({ flow }) {
+  const previousBalanceIsNegative = flow.previousBalance.totalUnits < 0;
+  const balanceIsNegative = flow.balance.totalUnits < 0;
+
   return (
     <div className="stock-flow-composition">
       <section>
-        <h4>Composição do estoque iniciado</h4>
+        <h4>Composição operacional</h4>
         <div className="stock-flow-equation">
           <div className="stock-flow-equation-item">
             <span>Compra 16 M</span>
-            <strong>{formatInteger(flow.purchase16)}</strong>
+            <strong>{formatInteger(flow.purchases.boxes16)} cx</strong>
+            <small>{formatInteger(flow.purchases.units16)} un.</small>
           </div>
           <Plus size={17} aria-hidden="true" />
           <div className="stock-flow-equation-item">
             <span>Compra 30 M</span>
-            <strong>{formatInteger(flow.purchase30)}</strong>
+            <strong>{formatInteger(flow.purchases.boxes30)} cx</strong>
+            <small>{formatInteger(flow.purchases.units30)} un.</small>
           </div>
           <Plus size={17} aria-hidden="true" />
-          <div className={`stock-flow-equation-item ${flow.previousBalance < 0 ? 'negative' : ''}`}>
+          <div className={`stock-flow-equation-item ${previousBalanceIsNegative ? 'negative' : ''}`}>
             <span>Saldo anterior</span>
-            <strong>{formatInteger(flow.previousBalance)}</strong>
+            <strong>{formatInteger(flow.previousBalance.totalBoxes)} cx</strong>
+            <small>{formatInteger(flow.previousBalance.totalUnits)} un.</small>
           </div>
           <Equal size={18} aria-hidden="true" />
           <div className="stock-flow-equation-item total">
             <span>Estoque iniciado</span>
-            <strong>{formatInteger(flow.openingStock)}</strong>
+            <strong>{formatInteger(flow.opening.totalBoxes)} cx</strong>
+            <small>{formatInteger(flow.opening.totalUnits)} un.</small>
+          </div>
+        </div>
+        <div className="stock-flow-equation probable">
+          <div className="stock-flow-equation-item">
+            <span>Compra seguinte</span>
+            <strong>{formatInteger(flow.nextPurchase.totalBoxes)} cx</strong>
+            <small>{formatInteger(flow.nextPurchase.totalUnits)} un.</small>
+          </div>
+          <Plus size={17} aria-hidden="true" />
+          <div className={`stock-flow-equation-item ${balanceIsNegative ? 'negative' : ''}`}>
+            <span>Saldo do mês</span>
+            <strong>{formatInteger(flow.balance.totalBoxes)} cx</strong>
+            <small>{formatInteger(flow.balance.totalUnits)} un.</small>
+          </div>
+          <Equal size={18} aria-hidden="true" />
+          <div className={`stock-flow-equation-item total ${flow.probable.totalUnits < 0 ? 'negative' : ''}`}>
+            <span>Estoque provável</span>
+            <strong>{formatInteger(flow.probable.totalBoxes)} cx</strong>
+            <small>{formatInteger(flow.probable.totalUnits)} un.</small>
           </div>
         </div>
       </section>
@@ -341,18 +549,27 @@ function StockFlowComposition({ flow }) {
         <h4>Fórmula de cálculo</h4>
         <p>
           <Boxes size={17} aria-hidden="true" />
-          <span><strong>Estoque iniciado</strong> = compras 16 M + compras 30 M + saldo anterior</span>
+          <span><strong>Estoque iniciado</strong> = compra 16 M + compra 30 M + saldo anterior</span>
         </p>
         <p>
           <Equal size={17} aria-hidden="true" />
           <span><strong>Saldo do mês</strong> = estoque iniciado - consumo do mês</span>
+        </p>
+        <p>
+          <PackageCheck size={17} aria-hidden="true" />
+          <span><strong>Estoque provável</strong> = compra do mês seguinte + saldo do mês</span>
         </p>
       </section>
     </div>
   );
 }
 
-function OperationalMonth({ flow, row }) {
+function OperationalMonth({ flow, row, statusMode }) {
+  const statusLabel = STATUS_MODE_OPTIONS.find((option) => option.value === statusMode)?.label || 'Enviado';
+  const balanceStatus = flow.balance.totalUnits < 0
+    ? { label: 'Crítico', tone: 'danger' }
+    : { label: 'Coberto', tone: 'success' };
+
   return (
     <section className="planning-operational-group">
       <div className="planning-operational-strip">
@@ -373,30 +590,33 @@ function OperationalMonth({ flow, row }) {
             <span>Fluxo de estoque do mês</span>
             <h3>Compras, consumo e saldo operacional</h3>
           </div>
-          <small>Valores consolidados em unidades</small>
+          <small>Gráfico em {flow.label}; status {statusLabel.toLowerCase()}</small>
         </div>
         <div className="stock-flow-metrics">
           <StockFlowMetric
-            detail="Unidades disponíveis no início do mês"
             icon={Boxes}
             label="Estoque iniciado"
+            part={flow.opening}
             tone="opening"
-            value={`${formatInteger(flow.openingStock)} un.`}
           />
           <StockFlowMetric
-            detail="Unidades consumidas no mês atual"
             icon={BarChart3}
             label="Consumo do mês"
+            part={flow.consumption}
             tone="consumption"
-            value={`${formatInteger(flow.consumption)} un.`}
           />
           <StockFlowMetric
-            detail="Unidades disponíveis ao final do mês"
             icon={Layers3}
             label="Saldo do mês"
-            status={{ label: row.status, tone: row.statusTone }}
-            tone={flow.finalBalance < 0 ? 'negative' : 'balance'}
-            value={`${formatInteger(flow.finalBalance)} un.`}
+            part={flow.balance}
+            status={balanceStatus}
+            tone={flow.balance.totalUnits < 0 ? 'negative' : 'balance'}
+          />
+          <StockFlowMetric
+            icon={PackageCheck}
+            label="Estoque provável"
+            part={flow.probable}
+            tone={flow.probable.totalUnits < 0 ? 'negative' : 'probable'}
           />
         </div>
         <StockFlowChart flow={flow} />
@@ -413,7 +633,7 @@ function planningDisplay(row, key, fallback) {
   return fallback;
 }
 
-function PlanningTable({ rows }) {
+function PlanningTable({ currentMonthKey, rows }) {
   const bodyRef = useRef(null);
   const tableRef = useRef(null);
   const topRef = useRef(null);
@@ -465,8 +685,7 @@ function PlanningTable({ rows }) {
         <table className="planning-table exact-columns" ref={tableRef}>
           <thead>
             <tr>
-              <th className="header-period sticky-month">Mês de Consumo</th>
-              <th className="header-period">Mês Compra</th>
+              <th className="header-period sticky-month">Mês Compra</th>
               <th className="header-period">Trans. Mês Consumo</th>
               <th className="header-16">Unidades - 16M</th>
               <th className="header-16">Caixa - 16M</th>
@@ -477,19 +696,30 @@ function PlanningTable({ rows }) {
               <th className="header-total">Total 16 M e 30M</th>
               <th className="header-total">Total caixas</th>
               <th className="header-total">Total Valor</th>
-              <th className="header-balance">Consumo</th>
+              <th className="header-balance">Consumo 16 m</th>
+              <th className="header-balance">Saldo</th>
+              <th className="header-balance">Consumo 30 m</th>
               <th className="header-balance">Saldo</th>
               <th className="header-date">Data Pedido</th>
               <th className="header-date">Data Entrega/Prevista</th>
             </tr>
           </thead>
           <tbody>
-            {rows.map((row) => (
-              <tr key={row.id}>
+            {rows.map((row) => {
+              const isCurrentMonth = row.monthKey === currentMonthKey;
+              const isFutureMonth = currentMonthKey && row.monthKey > currentMonthKey;
+              return (
+              <tr
+                className={[
+                  isCurrentMonth ? 'current-month' : '',
+                  isFutureMonth ? 'future-month' : '',
+                ].filter(Boolean).join(' ')}
+                key={row.id}
+              >
                 <td className="sticky-month">
-                  <strong>{planningDisplay(row, 'consumptionMonth', formatPlanningMonth(row.consumptionMonth))}</strong>
+                  <strong>{planningDisplay(row, 'month', formatPlanningMonth(row.monthKey))}</strong>
+                  {isCurrentMonth ? <small>Mês atual</small> : null}
                 </td>
-                <td>{planningDisplay(row, 'purchaseMonth', formatPlanningMonth(row.purchaseMonth))}</td>
                 <td>{planningDisplay(row, 'transactions', formatInteger(row.transactions))}</td>
                 <td>{planningDisplay(row, 'units16', formatInteger(row.units16))}</td>
                 <td>{planningDisplay(row, 'boxes16', formatInteger(row.boxes16))}</td>
@@ -500,14 +730,19 @@ function PlanningTable({ rows }) {
                 <td>{planningDisplay(row, 'totalUnits', formatInteger(row.totalUnits))}</td>
                 <td>{planningDisplay(row, 'totalBoxes', formatInteger(row.totalBoxes))}</td>
                 <td className="planning-total-value">{planningDisplay(row, 'totalValue', formatCurrency(row.totalValue))}</td>
-                <td>{planningDisplay(row, 'consumption', Number.isFinite(row.consumptionUnits) ? formatInteger(row.consumptionUnits) : '-')}</td>
-                <td className={Number.isFinite(row.balanceUnits) && row.balanceUnits < 0 ? 'balance-negative' : ''}>
-                  {planningDisplay(row, 'balance', Number.isFinite(row.balanceUnits) ? formatInteger(row.balanceUnits) : '-')}
+                <td>{planningDisplay(row, 'consumption16', Number.isFinite(row.consumption16Units) ? formatInteger(row.consumption16Units) : '-')}</td>
+                <td className={Number.isFinite(row.balance16Units) && row.balance16Units < 0 ? 'balance-negative' : ''}>
+                  {planningDisplay(row, 'balance16', Number.isFinite(row.balance16Units) ? formatInteger(row.balance16Units) : '-')}
+                </td>
+                <td>{planningDisplay(row, 'consumption30', Number.isFinite(row.consumption30Units) ? formatInteger(row.consumption30Units) : '-')}</td>
+                <td className={Number.isFinite(row.balance30Units) && row.balance30Units < 0 ? 'balance-negative' : ''}>
+                  {planningDisplay(row, 'balance30', Number.isFinite(row.balance30Units) ? formatInteger(row.balance30Units) : '-')}
                 </td>
                 <td>{planningDisplay(row, 'orderDate', formatPlanningDate(row.orderDate))}</td>
                 <td>{planningDisplay(row, 'deliveryDate', formatPlanningDate(row.deliveryDate))}</td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -525,6 +760,8 @@ export default function Purchases({
   const [isFiltersOpen, setIsFiltersOpen] = useState(false);
   const [isAlertsOpen, setIsAlertsOpen] = useState(true);
   const [filters, setFilters] = useState({
+    month: '',
+    statusMode: 'sent',
     status: '',
     type: '',
     onlyCritical: false,
@@ -532,8 +769,10 @@ export default function Purchases({
     onlyWithConsumption: false,
   });
   const planning = useMemo(
-    () => buildPurchasePlanning(planningRecords, bobbinRecords, rawPurchases, selectedYear),
-    [planningRecords, bobbinRecords, rawPurchases, selectedYear],
+    () => buildPurchasePlanning(planningRecords, bobbinRecords, rawPurchases, selectedYear, {
+      consumptionStatusMode: filters.statusMode,
+    }),
+    [planningRecords, bobbinRecords, rawPurchases, selectedYear, filters.statusMode],
   );
 
   useEffect(() => {
@@ -546,46 +785,42 @@ export default function Purchases({
     () => filterPurchasePlanningRows(planning.rows, filters),
     [planning.rows, filters],
   );
+  const totalsScope = useMemo(
+    () => planning.rows.find((row) => row.monthKey === filters.month) || planning.totals,
+    [filters.month, planning.rows, planning.totals],
+  );
   const visibleTotals = useMemo(
-    () => getPlanningTotalsForType(planning.totals, filters.type),
-    [planning.totals, filters.type],
+    () => getPlanningTotalsForType(totalsScope, filters.type),
+    [totalsScope, filters.type],
   );
   const operationalMonth = useMemo(
     () => getOperationalMonth(planning.rows, planning.year),
     [planning.rows, planning.year],
   );
-  const operationalFlow = useMemo(() => {
-    if (!operationalMonth) {
-      return null;
-    }
-    const currentIndex = planning.rows.findIndex((row) => row.monthKey === operationalMonth.monthKey);
-    const previousRow = currentIndex > 0 ? planning.rows[currentIndex - 1] : null;
-    const previousBalance = Number.isFinite(previousRow?.balanceUnits) ? previousRow.balanceUnits : 0;
-    const purchase16 = Number(operationalMonth.units16) || 0;
-    const purchase30 = Number(operationalMonth.units30) || 0;
-    const openingStock = purchase16 + purchase30 + previousBalance;
-    const consumption = Number.isFinite(operationalMonth.consumptionUnits)
-      ? operationalMonth.consumptionUnits
-      : 0;
-    const finalBalance = Number.isFinite(operationalMonth.balanceUnits)
-      ? operationalMonth.balanceUnits
-      : openingStock - consumption;
+  const flowMonth = useMemo(
+    () => planning.rows.find((row) => row.monthKey === filters.month) || operationalMonth,
+    [filters.month, operationalMonth, planning.rows],
+  );
+  const operationalFlow = useMemo(
+    () => buildOperationalFlow(flowMonth, planning.rows),
+    [flowMonth, planning.rows],
+  );
+  const currentMonthKey = useMemo(() => monthKeyFromToday(), []);
 
-    return {
-      purchase16,
-      purchase30,
-      previousBalance,
-      openingStock,
-      consumption,
-      finalBalance,
-    };
-  }, [operationalMonth, planning.rows]);
+  useEffect(() => {
+    if (filters.month && !planning.rows.some((row) => row.monthKey === filters.month)) {
+      setFilters((current) => ({ ...current, month: '' }));
+    }
+  }, [filters.month, planning.rows]);
+
   function updateFilter(field, value) {
     setFilters((current) => ({ ...current, [field]: value }));
   }
 
   function resetFilters() {
     setFilters({
+      month: '',
+      statusMode: 'sent',
       status: '',
       type: '',
       onlyCritical: false,
@@ -596,8 +831,7 @@ export default function Purchases({
 
   function exportMonthlyCsv() {
     downloadCsv(`planejamento-mensal-${planning.year}.csv`, planning.rows, [
-      { label: 'Mês de Consumo', value: (row) => planningDisplay(row, 'consumptionMonth', formatPlanningMonth(row.consumptionMonth)) },
-      { label: 'Mês Compra', value: (row) => planningDisplay(row, 'purchaseMonth', formatPlanningMonth(row.purchaseMonth)) },
+      { label: 'Mês Compra', value: (row) => planningDisplay(row, 'month', formatPlanningMonth(row.monthKey)) },
       { label: 'Trans. Mês Consumo', value: (row) => planningDisplay(row, 'transactions', formatInteger(row.transactions)) },
       { label: 'Unidades - 16M', value: (row) => planningDisplay(row, 'units16', formatInteger(row.units16)) },
       { label: 'Caixa - 16M', value: (row) => planningDisplay(row, 'boxes16', formatInteger(row.boxes16)) },
@@ -608,8 +842,10 @@ export default function Purchases({
       { label: 'Total 16 M e 30M', value: (row) => planningDisplay(row, 'totalUnits', formatInteger(row.totalUnits)) },
       { label: 'Total caixas', value: (row) => planningDisplay(row, 'totalBoxes', formatInteger(row.totalBoxes)) },
       { label: 'Total Valor', value: (row) => planningDisplay(row, 'totalValue', formatCurrency(row.totalValue)) },
-      { label: 'Consumo', value: (row) => planningDisplay(row, 'consumption', Number.isFinite(row.consumptionUnits) ? formatInteger(row.consumptionUnits) : '-') },
-      { label: 'Saldo', value: (row) => planningDisplay(row, 'balance', Number.isFinite(row.balanceUnits) ? formatInteger(row.balanceUnits) : '-') },
+      { label: 'Consumo 16 m', value: (row) => planningDisplay(row, 'consumption16', Number.isFinite(row.consumption16Units) ? formatInteger(row.consumption16Units) : '-') },
+      { label: 'Saldo 16 m', value: (row) => planningDisplay(row, 'balance16', Number.isFinite(row.balance16Units) ? formatInteger(row.balance16Units) : '-') },
+      { label: 'Consumo 30 m', value: (row) => planningDisplay(row, 'consumption30', Number.isFinite(row.consumption30Units) ? formatInteger(row.consumption30Units) : '-') },
+      { label: 'Saldo 30 m', value: (row) => planningDisplay(row, 'balance30', Number.isFinite(row.balance30Units) ? formatInteger(row.balance30Units) : '-') },
       { label: 'Data Pedido', value: (row) => planningDisplay(row, 'orderDate', formatPlanningDate(row.orderDate)) },
       { label: 'Data Entrega/Prevista', value: (row) => planningDisplay(row, 'deliveryDate', formatPlanningDate(row.deliveryDate)) },
     ]);
@@ -692,7 +928,7 @@ export default function Purchases({
       </section>
 
       {operationalMonth && operationalFlow ? (
-        <OperationalMonth flow={operationalFlow} row={operationalMonth} />
+        <OperationalMonth flow={operationalFlow} row={operationalMonth} statusMode={filters.statusMode} />
       ) : null}
 
       <section className="planning-table-section">
@@ -706,7 +942,7 @@ export default function Purchases({
             Exportar CSV
           </button>
         </div>
-        <PlanningTable rows={visibleRows} />
+        <PlanningTable currentMonthKey={currentMonthKey} rows={visibleRows} />
         {!visibleRows.length ? <div className="empty-state compact-empty">Nenhum mês corresponde aos filtros ativos.</div> : null}
       </section>
 

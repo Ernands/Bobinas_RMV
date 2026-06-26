@@ -41,7 +41,7 @@ const ANNUAL_ALIASES = {
 };
 
 const MONTHLY_ALIASES = {
-  consumptionMonth: ['mes de consumo', 'mes consumo'],
+  month: ['mes de consumo', 'mes consumo', 'mes compra'],
   purchaseMonth: ['mes compra'],
   transactions: ['trans mes consumo', 'transacoes mes consumo', 'trans mes compra', 'transacoes mes compra'],
   units16: ['unidades 16m'],
@@ -55,6 +55,10 @@ const MONTHLY_ALIASES = {
   totalValue: ['total valor'],
   consumption: ['consumo'],
   balance: ['saldo'],
+  consumption16: ['consumo 16 m', 'consumo 16m'],
+  balance16: ['saldo 16 m', 'saldo 16m', 'saldo'],
+  consumption30: ['consumo 30 m', 'consumo 30m'],
+  balance30: ['saldo 30 m', 'saldo 30m', 'saldo'],
   orderDate: ['data pedido'],
   deliveryDate: ['data entrega/prevista', 'data entrega prevista'],
 };
@@ -94,17 +98,21 @@ function buildMonthlyColumnMap(headerRow) {
   return Object.entries(headerRow || {}).reduce((map, [key, label]) => {
     const normalizedLabel = toColumnKey(label);
     if (normalizedLabel) {
-      map.set(normalizedLabel, key);
+      const current = map.get(normalizedLabel) || [];
+      map.set(normalizedLabel, [...current, key]);
     }
     return map;
   }, new Map());
 }
 
-function readMonthlyValue(row, columnMap, aliases) {
+function readMonthlyValue(row, columnMap, aliases, occurrence = 0) {
   for (const alias of aliases) {
-    const key = columnMap.get(toColumnKey(alias));
-    if (key !== undefined) {
-      return row[key] ?? '';
+    const keys = columnMap.get(toColumnKey(alias));
+    if (keys?.length) {
+      const key = keys[occurrence];
+      if (key !== undefined) {
+        return row[key] ?? '';
+      }
     }
   }
   return '';
@@ -133,9 +141,15 @@ function isAnnualRow(row) {
 function isMonthlyHeader(row) {
   const labels = new Set(Object.values(row || {}).map(toColumnKey).filter(Boolean));
   return (
-    MONTHLY_ALIASES.consumptionMonth.some((alias) => labels.has(toColumnKey(alias)))
-    && MONTHLY_ALIASES.purchaseMonth.some((alias) => labels.has(toColumnKey(alias)))
-    && MONTHLY_ALIASES.balance.some((alias) => labels.has(toColumnKey(alias)))
+    MONTHLY_ALIASES.month.some((alias) => labels.has(toColumnKey(alias)))
+    && (
+      MONTHLY_ALIASES.totalValue.some((alias) => labels.has(toColumnKey(alias)))
+      || MONTHLY_ALIASES.value16.some((alias) => labels.has(toColumnKey(alias)))
+    )
+    && (
+      MONTHLY_ALIASES.consumption.some((alias) => labels.has(toColumnKey(alias)))
+      || MONTHLY_ALIASES.consumption16.some((alias) => labels.has(toColumnKey(alias)))
+    )
   );
 }
 
@@ -163,7 +177,7 @@ function normalizeAnnualRow(row, index) {
 
 function normalizeMonthlyRow(row, columnMap, index) {
   const raw = {
-    consumptionMonth: readMonthlyValue(row, columnMap, MONTHLY_ALIASES.consumptionMonth),
+    month: readMonthlyValue(row, columnMap, MONTHLY_ALIASES.month),
     purchaseMonth: readMonthlyValue(row, columnMap, MONTHLY_ALIASES.purchaseMonth),
     transactions: readMonthlyValue(row, columnMap, MONTHLY_ALIASES.transactions),
     units16: readMonthlyValue(row, columnMap, MONTHLY_ALIASES.units16),
@@ -177,19 +191,29 @@ function normalizeMonthlyRow(row, columnMap, index) {
     totalValue: readMonthlyValue(row, columnMap, MONTHLY_ALIASES.totalValue),
     consumption: readMonthlyValue(row, columnMap, MONTHLY_ALIASES.consumption),
     balance: readMonthlyValue(row, columnMap, MONTHLY_ALIASES.balance),
+    consumption16: readMonthlyValue(row, columnMap, MONTHLY_ALIASES.consumption16),
+    balance16: readMonthlyValue(row, columnMap, MONTHLY_ALIASES.balance16, 0),
+    consumption30: readMonthlyValue(row, columnMap, MONTHLY_ALIASES.consumption30),
+    balance30: readMonthlyValue(row, columnMap, MONTHLY_ALIASES.balance30, 1),
     orderDate: readMonthlyValue(row, columnMap, MONTHLY_ALIASES.orderDate),
     deliveryDate: readMonthlyValue(row, columnMap, MONTHLY_ALIASES.deliveryDate),
   };
-  const consumptionMonth = parseMonthCell(raw.consumptionMonth);
-  const purchaseMonth = parseMonthCell(raw.purchaseMonth);
+  const monthKey = parseMonthCell(raw.month);
+  const purchaseMonth = parseMonthCell(raw.purchaseMonth) || monthKey;
   const orderDate = parseDate(raw.orderDate);
   const deliveryDate = parseDate(raw.deliveryDate);
+  const consumption16Units = optionalNumber(raw.consumption16);
+  const consumption30Units = optionalNumber(raw.consumption30);
+  const balance16Units = optionalNumber(raw.balance16);
+  const balance30Units = optionalNumber(raw.balance30);
+  const hasTypedConsumption = Number.isFinite(consumption16Units) || Number.isFinite(consumption30Units);
+  const hasTypedBalance = Number.isFinite(balance16Units) || Number.isFinite(balance30Units);
 
   return {
-    id: `monthly-${consumptionMonth || purchaseMonth || index}`,
+    id: `monthly-${monthKey || purchaseMonth || index}`,
     rowType: 'monthly',
-    monthKey: consumptionMonth,
-    consumptionMonth,
+    monthKey,
+    consumptionMonth: monthKey,
     purchaseMonth,
     transactions: safeNumber(raw.transactions),
     units16: safeNumber(raw.units16),
@@ -201,8 +225,16 @@ function normalizeMonthlyRow(row, columnMap, index) {
     totalUnits: safeNumber(raw.totalUnits),
     totalBoxes: safeNumber(raw.totalBoxes),
     totalValue: safeNumber(raw.totalValue),
-    consumptionUnits: optionalNumber(raw.consumption),
-    balanceUnits: optionalNumber(raw.balance),
+    consumption16Units,
+    balance16Units,
+    consumption30Units,
+    balance30Units,
+    consumptionUnits: hasTypedConsumption
+      ? (Number(consumption16Units) || 0) + (Number(consumption30Units) || 0)
+      : optionalNumber(raw.consumption),
+    balanceUnits: hasTypedBalance
+      ? (Number(balance16Units) || 0) + (Number(balance30Units) || 0)
+      : optionalNumber(raw.balance),
     orderDate,
     deliveryDate,
     display: raw,
@@ -226,7 +258,7 @@ export function normalizePurchasePlanningRows(rawRows) {
   const monthlyRows = monthlyHeader
     ? rows.slice(monthlyHeaderIndex + 1)
       .map((row, index) => normalizeMonthlyRow(row, monthlyColumnMap, index))
-      .filter((row) => row.consumptionMonth)
+      .filter((row) => row.monthKey)
     : [];
 
   return {
