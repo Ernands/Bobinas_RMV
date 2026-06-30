@@ -527,8 +527,8 @@ function StockFlowChart({ flow }) {
     let positiveBase = 0;
     let negativeBase = 0;
     return [
-      { key: '16', label: '16M', value: bar.visualUnits16, boxes: Math.abs(bar.part.boxes16), color: bar.colors[0] },
-      { key: '30', label: '30M', value: bar.visualUnits30, boxes: Math.abs(bar.part.boxes30), color: bar.colors[1] },
+      { key: '16', label: '16M', value: bar.visualUnits16, boxes: Math.abs(bar.part.boxes16), color: bar.colors[0], calloutOffset: -10 },
+      { key: '30', label: '30M', value: bar.visualUnits30, boxes: Math.abs(bar.part.boxes30), color: bar.colors[1], calloutOffset: 12 },
     ].filter((segment) => Number.isFinite(segment.value) && segment.value !== 0)
       .map((segment) => {
         const start = segment.value >= 0 ? positiveBase : negativeBase;
@@ -543,7 +543,10 @@ function StockFlowChart({ flow }) {
         const rectY = Math.min(y1, y2);
         const height = Math.max(2, Math.abs(y2 - y1));
         const labelY = rectY + (height / 2);
-        const shouldShowSegmentLabel = height >= 42 && segment.boxes > 0;
+        const shouldShowSegmentLabel = height >= 28 && segment.boxes > 0;
+        const shouldShowCallout = !shouldShowSegmentLabel && segment.boxes > 0;
+        const calloutX = bar.x + (barWidth / 2) + 10;
+        const calloutY = Math.max(chartTop + 10, Math.min(chartBottom - 10, labelY + segment.calloutOffset));
         return (
           <g key={`${bar.key}-${segment.key}`}>
             <rect
@@ -565,6 +568,15 @@ function StockFlowChart({ flow }) {
                 <tspan>{segment.label}</tspan>
                 <tspan dx="6">{formatInteger(segment.boxes)} cx</tspan>
               </text>
+            ) : null}
+            {shouldShowCallout ? (
+              <g className="stock-flow-segment-callout">
+                <line x1={bar.x + (barWidth / 2) + 2} x2={calloutX - 4} y1={labelY} y2={calloutY} />
+                <text dominantBaseline="middle" x={calloutX} y={calloutY}>
+                  <tspan>{segment.label}</tspan>
+                  <tspan dx="5">{formatInteger(segment.boxes)} cx</tspan>
+                </text>
+              </g>
             ) : null}
           </g>
         );
