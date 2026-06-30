@@ -429,8 +429,8 @@ function StockFlowMetric({ icon: Icon, label, part, status, tone }) {
 }
 
 function StockFlowChart({ flow }) {
-  const chartTop = 88;
-  const chartBottom = 328;
+  const chartTop = 112;
+  const chartBottom = 330;
   const bars = [
     {
       key: 'opening',
@@ -515,12 +515,12 @@ function StockFlowChart({ flow }) {
     const topValue = positiveTotal(bar);
     const bottomValue = negativeTotal(bar);
     if (topValue > 0) {
-      return Math.max(28, y(topValue) - 36);
+      return Math.max(24, y(topValue) - 72);
     }
     if (bottomValue < 0) {
-      return Math.min(chartBottom - 6, y(bottomValue) + 30);
+      return Math.min(chartBottom - 54, y(bottomValue) + 36);
     }
-    return zeroY - 28;
+    return zeroY - 64;
   }
 
   function renderSegments(bar) {
@@ -543,7 +543,7 @@ function StockFlowChart({ flow }) {
         const rectY = Math.min(y1, y2);
         const height = Math.max(2, Math.abs(y2 - y1));
         const labelY = rectY + (height / 2);
-        const shouldShowSegmentLabel = height >= 32 && segment.boxes > 0;
+        const shouldShowSegmentLabel = height >= 42 && segment.boxes > 0;
         return (
           <g key={`${bar.key}-${segment.key}`}>
             <rect

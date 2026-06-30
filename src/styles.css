@@ -3581,7 +3581,7 @@ tbody tr:last-child td {
 
 .stock-flow-step-total {
   fill: #0f172a;
-  font-size: 18px;
+  font-size: 17px;
   font-weight: 900;
   paint-order: stroke;
   stroke: rgba(255, 255, 255, 0.9);
@@ -3590,19 +3590,19 @@ tbody tr:last-child td {
 
 .stock-flow-step-units {
   fill: #64748b;
-  font-size: 10px;
+  font-size: 9.5px;
   font-weight: 800;
 }
 
 .stock-flow-segment-label {
   fill: #ffffff;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 900;
   letter-spacing: 0;
   paint-order: stroke;
   pointer-events: none;
-  stroke: rgba(15, 23, 42, 0.22);
-  stroke-width: 2px;
+  stroke: rgba(15, 23, 42, 0.18);
+  stroke-width: 1.6px;
 }
 
 .stock-flow-chart-note {
