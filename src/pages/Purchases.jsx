@@ -429,7 +429,7 @@ function StockFlowMetric({ icon: Icon, label, part, status, tone }) {
 }
 
 function StockFlowChart({ flow }) {
-  const chartTop = 112;
+  const chartTop = 72;
   const chartBottom = 330;
   const bars = [
     {
@@ -511,24 +511,12 @@ function StockFlowChart({ flow }) {
     return bar.part.totalUnits;
   }
 
-  function totalLabelY(bar) {
-    const topValue = positiveTotal(bar);
-    const bottomValue = negativeTotal(bar);
-    if (topValue > 0) {
-      return Math.max(24, y(topValue) - 72);
-    }
-    if (bottomValue < 0) {
-      return Math.min(chartBottom - 54, y(bottomValue) + 36);
-    }
-    return zeroY - 64;
-  }
-
   function renderSegments(bar) {
     let positiveBase = 0;
     let negativeBase = 0;
     return [
-      { key: '16', label: '16M', value: bar.visualUnits16, boxes: Math.abs(bar.part.boxes16), color: bar.colors[0], calloutOffset: -10 },
-      { key: '30', label: '30M', value: bar.visualUnits30, boxes: Math.abs(bar.part.boxes30), color: bar.colors[1], calloutOffset: 12 },
+      { key: '16', label: '16M', value: bar.visualUnits16, boxes: Math.abs(bar.part.boxes16), color: bar.colors[0] },
+      { key: '30', label: '30M', value: bar.visualUnits30, boxes: Math.abs(bar.part.boxes30), color: bar.colors[1] },
     ].filter((segment) => Number.isFinite(segment.value) && segment.value !== 0)
       .map((segment) => {
         const start = segment.value >= 0 ? positiveBase : negativeBase;
@@ -544,9 +532,10 @@ function StockFlowChart({ flow }) {
         const height = Math.max(2, Math.abs(y2 - y1));
         const labelY = rectY + (height / 2);
         const shouldShowSegmentLabel = height >= 28 && segment.boxes > 0;
-        const shouldShowCallout = !shouldShowSegmentLabel && segment.boxes > 0;
-        const calloutX = bar.x + (barWidth / 2) + 10;
-        const calloutY = Math.max(chartTop + 10, Math.min(chartBottom - 10, labelY + segment.calloutOffset));
+        const shouldShowExternalLabel = !shouldShowSegmentLabel && segment.boxes > 0;
+        const externalY = segment.value >= 0
+          ? Math.max(chartTop + 10, rectY - 8)
+          : Math.min(chartBottom - 8, rectY + height + 12);
         return (
           <g key={`${bar.key}-${segment.key}`}>
             <rect
@@ -569,14 +558,17 @@ function StockFlowChart({ flow }) {
                 <tspan dx="6">{formatInteger(segment.boxes)} cx</tspan>
               </text>
             ) : null}
-            {shouldShowCallout ? (
-              <g className="stock-flow-segment-callout">
-                <line x1={bar.x + (barWidth / 2) + 2} x2={calloutX - 4} y1={labelY} y2={calloutY} />
-                <text dominantBaseline="middle" x={calloutX} y={calloutY}>
-                  <tspan>{segment.label}</tspan>
-                  <tspan dx="5">{formatInteger(segment.boxes)} cx</tspan>
-                </text>
-              </g>
+            {shouldShowExternalLabel ? (
+              <text
+                className="stock-flow-segment-external-label"
+                dominantBaseline="middle"
+                textAnchor="middle"
+                x={bar.x}
+                y={externalY}
+              >
+                <tspan>{segment.label}</tspan>
+                <tspan dx="5">{formatInteger(segment.boxes)} cx</tspan>
+              </text>
             ) : null}
           </g>
         );
@@ -629,15 +621,6 @@ function StockFlowChart({ flow }) {
 
         {bars.map((bar) => (
           <g key={`bar-${bar.key}`}>
-            <text className="stock-flow-step-title" textAnchor="middle" x={bar.x} y={totalLabelY(bar)}>
-              {bar.title}
-            </text>
-            <text className="stock-flow-step-total" textAnchor="middle" x={bar.x} y={totalLabelY(bar) + 23}>
-              {formatInteger(Math.abs(bar.part.totalBoxes))} cx
-            </text>
-            <text className="stock-flow-step-units" textAnchor="middle" x={bar.x} y={totalLabelY(bar) + 42}>
-              {formatInteger(bar.part.totalUnits)} un.
-            </text>
             {renderSegments(bar)}
             <text className="stock-flow-category" textAnchor="middle" x={bar.x} y="382">{bar.label}</text>
           </g>
