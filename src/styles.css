@@ -1498,6 +1498,7 @@ tbody tr:last-child td {
 .monthly-planning-form,
 .operational-month,
 .planning-table-section,
+.purchase-suggestion-card,
 .planning-alerts,
 .planning-filter-panel,
 .annual-summary-section {
@@ -2110,6 +2111,126 @@ tbody tr:last-child td {
   margin: 4px 0 0;
   color: #6b7280;
   font-size: 12px;
+}
+
+.purchase-suggestion-card {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+}
+
+.purchase-suggestion-card.empty {
+  background: #f8fafc;
+}
+
+.purchase-suggestion-heading {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: start;
+}
+
+.purchase-suggestion-heading h3 {
+  margin: 2px 0 0;
+  color: #111827;
+  font-size: 17px;
+}
+
+.purchase-suggestion-heading p {
+  margin: 5px 0 0;
+  color: #6b7280;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.purchase-suggestion-heading p strong {
+  color: #1d4ed8;
+}
+
+.purchase-suggestion-icon {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border-radius: 8px;
+  background: #eff6ff;
+  color: #2563eb;
+}
+
+.purchase-suggestion-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.purchase-suggestion-item {
+  display: grid;
+  gap: 6px;
+  border: 1px solid #dbeafe;
+  border-radius: 8px;
+  background: #eff6ff;
+  padding: 14px;
+}
+
+.purchase-suggestion-item.type-30 {
+  border-color: #bfdbfe;
+  background: #e0f2fe;
+}
+
+.purchase-suggestion-item span {
+  color: #1e3a8a;
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.purchase-suggestion-item strong {
+  color: #0f172a;
+  font-size: 26px;
+  line-height: 1;
+}
+
+.purchase-suggestion-item small,
+.purchase-suggestion-item em {
+  color: #64748b;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 700;
+}
+
+.purchase-suggestion-item b {
+  color: #2563eb;
+  font-size: 18px;
+}
+
+.purchase-suggestion-reasoning {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  border-top: 1px solid #e5e7eb;
+  padding-top: 12px;
+}
+
+.purchase-suggestion-reasoning article {
+  display: grid;
+  gap: 5px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 12px;
+}
+
+.purchase-suggestion-reasoning strong {
+  color: #111827;
+  font-size: 13px;
+}
+
+.purchase-suggestion-reasoning p,
+.purchase-suggestion-reasoning small {
+  margin: 0;
+  color: #6b7280;
+  font-size: 12px;
+  line-height: 1.45;
 }
 
 .planning-table-shell {
@@ -3708,6 +3829,11 @@ tbody tr:last-child td {
   }
 
   .purchase-summary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .purchase-suggestion-grid,
+  .purchase-suggestion-reasoning {
     grid-template-columns: 1fr;
   }
 

@@ -6,17 +6,14 @@ import Filters from './components/Filters';
 import Overview from './pages/Overview';
 import MonthlyDemand from './pages/MonthlyDemand';
 import ShippingDelays from './pages/ShippingDelays';
-import Bobbin16 from './pages/Bobbin16';
-import Bobbin30 from './pages/Bobbin30';
 import Purchases from './pages/Purchases';
-import Coverage from './pages/Coverage';
 import Destinations from './pages/Destinations';
 import Exports from './pages/Exports';
 import Correios from './pages/Correios';
 import PurchaseForecast from './pages/PurchaseForecast';
 import CriticalPoints from './pages/CriticalPoints';
 import { DATASET_CONFIGS, getDatasetConfig } from './config/datasets';
-import { NAV_GROUPS, getActiveGroupId, getPageMeta } from './config/navigation';
+import { getActiveGroupId, getNavGroups, getPageMeta } from './config/navigation';
 import { applyFilters, buildAnalytics } from './utils/calculations';
 import {
   buildCorreiosAnalytics,
@@ -59,9 +56,6 @@ const BOBINAS_FILTER_TABS = new Set([
   'overview',
   'monthly',
   'shipping',
-  'bobbin16',
-  'bobbin30',
-  'coverage',
 ]);
 
 function uniqueOptions(records, field) {
@@ -232,7 +226,7 @@ function Sidebar({ activeTab, isCollapsed, onChange, onToggle }) {
         </div>
 
         <nav className="sidebar-nav" aria-label="Menu principal">
-          {NAV_GROUPS.map((group) => {
+          {getNavGroups().map((group) => {
             const isOpen = openGroupId === group.id;
             const panelId = `sidebar-group-${group.id}`;
             const GroupIcon = group.icon;
@@ -600,8 +594,6 @@ export default function App() {
           ) : null}
           {activeTab === 'monthly' ? <MonthlyDemand {...pageProps} /> : null}
           {activeTab === 'shipping' ? <ShippingDelays {...pageProps} /> : null}
-          {activeTab === 'bobbin16' ? <Bobbin16 {...pageProps} /> : null}
-          {activeTab === 'bobbin30' ? <Bobbin30 {...pageProps} /> : null}
           {activeTab === 'purchases' ? (
             <Purchases
               bobbinRecords={records}
@@ -613,7 +605,6 @@ export default function App() {
               onSave={savePurchase}
             />
           ) : null}
-          {activeTab === 'coverage' ? <Coverage {...pageProps} /> : null}
           {activeTab === 'destinations' ? (
             <Destinations
               analytics={consolidatedAnalytics}

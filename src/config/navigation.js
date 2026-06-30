@@ -21,6 +21,8 @@ export const DEFAULT_PAGE_META = {
   subtitle: 'Visão geral da operação',
 };
 
+const HIDDEN_NAV_ITEM_IDS = new Set(['bobbin16', 'bobbin30', 'coverage']);
+
 export const NAV_GROUPS = [
   {
     id: 'dashboard',
@@ -167,7 +169,16 @@ export const NAV_GROUPS = [
 ];
 
 export function getNavItems() {
-  return NAV_GROUPS.flatMap((group) => group.items);
+  return NAV_GROUPS.flatMap((group) => group.items).filter((item) => !HIDDEN_NAV_ITEM_IDS.has(item.id));
+}
+
+export function getNavGroups() {
+  return NAV_GROUPS
+    .map((group) => ({
+      ...group,
+      items: group.items.filter((item) => !HIDDEN_NAV_ITEM_IDS.has(item.id)),
+    }))
+    .filter((group) => group.items.length);
 }
 
 export function getPageMeta(activeTab) {
@@ -179,5 +190,7 @@ export function getPageMeta(activeTab) {
 }
 
 export function getActiveGroupId(activeTab) {
-  return NAV_GROUPS.find((group) => group.items.some((item) => item.id === activeTab))?.id || NAV_GROUPS[0].id;
+  return NAV_GROUPS.find((group) => (
+    group.items.some((item) => item.id === activeTab && !HIDDEN_NAV_ITEM_IDS.has(item.id))
+  ))?.id || NAV_GROUPS[0].id;
 }

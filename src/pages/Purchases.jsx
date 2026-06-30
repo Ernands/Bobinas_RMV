@@ -8,14 +8,17 @@ import {
   Download,
   Equal,
   Filter,
+  Info,
   Layers3,
   PackageCheck,
   Plus,
   RotateCcw,
+  ShoppingCart,
 } from 'lucide-react';
 import PurchaseAnnualSummary from '../components/PurchaseAnnualSummary';
 import {
   BOBBIN_CONFIGS,
+  calculateCost,
   ceilBoxes,
   formatCurrency,
   formatInteger,
@@ -50,6 +53,17 @@ function monthKeyFromToday() {
   return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
 }
 
+function isOnOrBeforeToday(date) {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) {
+    return false;
+  }
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const comparisonDate = new Date(date);
+  comparisonDate.setHours(0, 0, 0, 0);
+  return comparisonDate <= today;
+}
+
 function signedBoxesFromUnits(units, type) {
   if (!Number.isFinite(units) || units === 0) {
     return 0;
@@ -77,18 +91,21 @@ function buildStockPart({ boxes16, boxes30, units16, units30 }) {
 function getConsumptionUnits(row, type) {
   const field = type === '16' ? 'consumption16Units' : 'consumption30Units';
   const filteredField = type === '16' ? 'filteredConsumption16Units' : 'filteredConsumption30Units';
+  if (Number.isFinite(row?.[field])) {
+    return row[field];
+  }
   if (row?.filteredConsumptionAvailable && Number.isFinite(row[filteredField])) {
     return row[filteredField];
   }
-  return Number.isFinite(row?.[field]) ? row[field] : 0;
+  return 0;
 }
 
 function getBalanceUnits(row, type, openingUnits, consumptionUnits) {
   const field = type === '16' ? 'balance16Units' : 'balance30Units';
-  if (row?.filteredConsumptionAvailable) {
-    return openingUnits - consumptionUnits;
+  if (Number.isFinite(row?.[field])) {
+    return row[field];
   }
-  return Number.isFinite(row?.[field]) ? row[field] : openingUnits - consumptionUnits;
+  return openingUnits - consumptionUnits;
 }
 
 function buildOperationalFlow(row, rows) {
@@ -107,8 +124,13 @@ function buildOperationalFlow(row, rows) {
   const consumption30Units = getConsumptionUnits(row, '30');
   const balance16Units = getBalanceUnits(row, '16', opening16Units, consumption16Units);
   const balance30Units = getBalanceUnits(row, '30', opening30Units, consumption30Units);
-  const probable16Units = (Number(nextRow?.units16) || 0) + balance16Units;
-  const probable30Units = (Number(nextRow?.units30) || 0) + balance30Units;
+  const includeNextPurchase = isOnOrBeforeToday(row.deliveryDate);
+  const nextPurchase16Units = includeNextPurchase ? Number(nextRow?.units16) || 0 : 0;
+  const nextPurchase30Units = includeNextPurchase ? Number(nextRow?.units30) || 0 : 0;
+  const nextPurchase16Boxes = includeNextPurchase ? Number(nextRow?.boxes16) || 0 : 0;
+  const nextPurchase30Boxes = includeNextPurchase ? Number(nextRow?.boxes30) || 0 : 0;
+  const probable16Units = nextPurchase16Units + balance16Units;
+  const probable30Units = nextPurchase30Units + balance30Units;
 
   return {
     monthKey: row.monthKey,
@@ -138,17 +160,74 @@ function buildOperationalFlow(row, rows) {
       units30: balance30Units,
     }),
     probable: buildStockPart({
-      boxes16: (Number(nextRow?.boxes16) || 0) + signedBoxesFromUnits(balance16Units, '16'),
-      boxes30: (Number(nextRow?.boxes30) || 0) + signedBoxesFromUnits(balance30Units, '30'),
+      boxes16: nextPurchase16Boxes + signedBoxesFromUnits(balance16Units, '16'),
+      boxes30: nextPurchase30Boxes + signedBoxesFromUnits(balance30Units, '30'),
       units16: probable16Units,
       units30: probable30Units,
     }),
     nextPurchase: buildStockPart({
-      boxes16: nextRow?.boxes16 || 0,
-      boxes30: nextRow?.boxes30 || 0,
-      units16: nextRow?.units16 || 0,
-      units30: nextRow?.units30 || 0,
+      boxes16: nextPurchase16Boxes,
+      boxes30: nextPurchase30Boxes,
+      units16: nextPurchase16Units,
+      units30: nextPurchase30Units,
     }),
+  };
+}
+
+function hasPlannedPurchase(row) {
+  return Boolean(
+    row?.orderDate
+    || row?.deliveryDate
+    || Number(row?.units16) > 0
+    || Number(row?.units30) > 0
+    || Number(row?.boxes16) > 0
+    || Number(row?.boxes30) > 0
+  );
+}
+
+function getConsumptionHistory(rows, targetMonthKey, type, limit = 4) {
+  const field = type === '16' ? 'consumption16Units' : 'consumption30Units';
+  return rows
+    .filter((row) => row.monthKey < targetMonthKey && Number.isFinite(row[field]) && row[field] > 0)
+    .slice(-limit);
+}
+
+function buildSuggestionItem(rows, targetRow, type) {
+  const config = BOBBIN_CONFIGS[type];
+  const history = getConsumptionHistory(rows, targetRow.monthKey, type);
+  const averageUnits = history.length
+    ? history.reduce((sum, row) => sum + row[`consumption${type}Units`], 0) / history.length
+    : 0;
+  const suggestedBoxes = averageUnits > 0 ? ceilBoxes(averageUnits, config.unitsPerBox) : 0;
+  const suggestedUnits = suggestedBoxes * config.unitsPerBox;
+
+  return {
+    type,
+    label: `${type} M`,
+    averageUnits,
+    history,
+    suggestedBoxes,
+    suggestedUnits,
+    suggestedValue: calculateCost(suggestedUnits, config.unitCost),
+    unitsPerBox: config.unitsPerBox,
+  };
+}
+
+function buildPurchaseOrderSuggestion(rows, currentMonthKey) {
+  const searchRows = rows.filter((row) => row.monthKey >= currentMonthKey);
+  const targetRow = (searchRows.length ? searchRows : rows).find((row) => !hasPlannedPurchase(row));
+
+  if (!targetRow) {
+    return null;
+  }
+
+  return {
+    targetRow,
+    purchaseMonth: targetRow.purchaseMonth || addMonths(targetRow.monthKey, -2),
+    items: [
+      buildSuggestionItem(rows, targetRow, '16'),
+      buildSuggestionItem(rows, targetRow, '30'),
+    ],
   };
 }
 
@@ -580,8 +659,7 @@ function StockFlowComposition({ flow }) {
   );
 }
 
-function OperationalMonth({ flow, row, statusMode }) {
-  const statusLabel = STATUS_MODE_OPTIONS.find((option) => option.value === statusMode)?.label || 'Enviado';
+function OperationalMonth({ flow, row }) {
   const balanceStatus = flow.balance.totalUnits < 0
     ? { label: 'Crítico', tone: 'danger' }
     : { label: 'Coberto', tone: 'success' };
@@ -606,7 +684,7 @@ function OperationalMonth({ flow, row, statusMode }) {
             <span>Fluxo de estoque do mês</span>
             <h3>Compras, consumo e saldo operacional</h3>
           </div>
-          <small>Gráfico em {flow.label}; status {statusLabel.toLowerCase()}</small>
+          <small>Gráfico em {flow.label}; base Compras_Bobinas</small>
         </div>
         <div className="stock-flow-metrics">
           <StockFlowMetric
@@ -771,6 +849,97 @@ function PlanningTable({ currentMonthKey, rows }) {
   );
 }
 
+function PurchaseOrderSuggestion({ suggestion }) {
+  const [isReasonOpen, setIsReasonOpen] = useState(false);
+
+  if (!suggestion) {
+    return (
+      <section className="purchase-suggestion-card empty">
+        <div className="purchase-suggestion-heading">
+          <span className="purchase-suggestion-icon">
+            <ShoppingCart size={19} aria-hidden="true" />
+          </span>
+          <div>
+            <h3>Sugestão de pedido de compra</h3>
+            <p>Nenhum mês futuro sem pedido foi identificado no planejamento atual.</p>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  const hasHistory = suggestion.items.some((item) => item.history.length);
+
+  return (
+    <section className="purchase-suggestion-card">
+      <div className="purchase-suggestion-heading">
+        <span className="purchase-suggestion-icon">
+          <ShoppingCart size={19} aria-hidden="true" />
+        </span>
+        <div>
+          <span className="eyebrow">Sugestão automática</span>
+          <h3>Pedido para {formatPlanningMonth(suggestion.targetRow.monthKey)}</h3>
+          <p>
+            Próximo mês sem pedido no planejamento. Compra de referência:
+            {' '}
+            <strong>{formatPlanningMonth(suggestion.purchaseMonth)}</strong>.
+          </p>
+        </div>
+        <button
+          aria-expanded={isReasonOpen}
+          className="icon-button"
+          title="Ver raciocínio da sugestão"
+          type="button"
+          onClick={() => setIsReasonOpen((current) => !current)}
+        >
+          <Info size={17} aria-hidden="true" />
+        </button>
+      </div>
+
+      <div className="purchase-suggestion-grid">
+        {suggestion.items.map((item) => (
+          <article className={`purchase-suggestion-item type-${item.type}`} key={item.type}>
+            <span>{item.label}</span>
+            <strong>{formatInteger(item.suggestedBoxes)} caixas</strong>
+            <small>{formatInteger(item.suggestedUnits)} unidades sugeridas</small>
+            <b>{formatCurrency(item.suggestedValue)}</b>
+            <em>Média histórica: {formatInteger(item.averageUnits)} un.</em>
+          </article>
+        ))}
+      </div>
+
+      {isReasonOpen ? (
+        <div className="purchase-suggestion-reasoning">
+          {hasHistory ? (
+            suggestion.items.map((item) => (
+              <article key={`reason-${item.type}`}>
+                <strong>{item.label}</strong>
+                <p>
+                  Média dos últimos {item.history.length} mês(es) com consumo preenchido antes de
+                  {' '}
+                  {formatPlanningMonth(suggestion.targetRow.monthKey)}:
+                  {' '}
+                  {formatInteger(item.averageUnits)} unidades. A sugestão arredonda para caixa cheia
+                  ({item.unitsPerBox} unidades por caixa).
+                </p>
+                <small>
+                  Meses usados:
+                  {' '}
+                  {item.history.map((row) => (
+                    `${formatPlanningMonth(row.monthKey)} (${formatInteger(row[`consumption${item.type}Units`])} un.)`
+                  )).join(', ')}
+                </small>
+              </article>
+            ))
+          ) : (
+            <p>Não há consumo histórico suficiente para calcular uma sugestão confiável.</p>
+          )}
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
 export default function Purchases({
   bobbinRecords,
   datasetState,
@@ -827,6 +996,10 @@ export default function Purchases({
     [flowMonth, planning.rows],
   );
   const currentMonthKey = useMemo(() => monthKeyFromToday(), []);
+  const purchaseSuggestion = useMemo(
+    () => buildPurchaseOrderSuggestion(planning.rows, currentMonthKey),
+    [planning.rows, currentMonthKey],
+  );
 
   useEffect(() => {
     if (filters.month && !planning.rows.some((row) => row.monthKey === filters.month)) {
@@ -950,7 +1123,7 @@ export default function Purchases({
       </section>
 
       {operationalMonth && operationalFlow ? (
-        <OperationalMonth flow={operationalFlow} row={operationalMonth} statusMode={filters.statusMode} />
+        <OperationalMonth flow={operationalFlow} row={operationalMonth} />
       ) : null}
 
       <section className="planning-table-section">
@@ -967,6 +1140,8 @@ export default function Purchases({
         <PlanningTable currentMonthKey={currentMonthKey} rows={visibleRows} />
         {!visibleRows.length ? <div className="empty-state compact-empty">Nenhum mês corresponde aos filtros ativos.</div> : null}
       </section>
+
+      <PurchaseOrderSuggestion suggestion={purchaseSuggestion} />
 
       <PurchaseAnnualSummary
         onExport={exportAnnualCsv}
