@@ -429,16 +429,17 @@ function StockFlowMetric({ icon: Icon, label, part, status, tone }) {
 }
 
 function StockFlowChart({ flow }) {
-  const chartTop = 42;
-  const chartBottom = 282;
+  const chartTop = 88;
+  const chartBottom = 328;
   const bars = [
     {
       key: 'opening',
       title: 'ESTOQUE INICIADO',
       label: 'Estoque iniciado',
       part: flow.opening,
+      visualUnits16: flow.opening.units16,
+      visualUnits30: flow.opening.units30,
       colors: ['#60A5FA', '#2563EB'],
-      valueClass: 'opening',
       x: 160,
     },
     {
@@ -446,8 +447,9 @@ function StockFlowChart({ flow }) {
       title: 'CONSUMO DO MÊS',
       label: 'Consumo',
       part: flow.consumption,
+      visualUnits16: -Math.abs(flow.consumption.units16),
+      visualUnits30: -Math.abs(flow.consumption.units30),
       colors: ['#FDBA74', '#EA580C'],
-      valueClass: 'consumption',
       x: 390,
     },
     {
@@ -455,8 +457,9 @@ function StockFlowChart({ flow }) {
       title: 'SALDO DO MÊS',
       label: 'Saldo',
       part: flow.balance,
-      colors: flow.balance.totalUnits < 0 ? ['#FCA5A5', '#B91C1C'] : ['#1E3A8A', '#0F172A'],
-      valueClass: flow.balance.totalUnits < 0 ? 'negative' : 'balance',
+      visualUnits16: flow.balance.units16,
+      visualUnits30: flow.balance.units30,
+      colors: [flow.balance.units16 < 0 ? '#FCA5A5' : '#1D4ED8', flow.balance.units30 < 0 ? '#B91C1C' : '#0F172A'],
       x: 620,
     },
     {
@@ -464,16 +467,17 @@ function StockFlowChart({ flow }) {
       title: 'ESTOQUE PROVÁVEL',
       label: 'Estoque provável',
       part: flow.probable,
+      visualUnits16: flow.probable.units16,
+      visualUnits30: flow.probable.units30,
       colors: flow.probable.totalUnits < 0 ? ['#FED7AA', '#C2410C'] : ['#86EFAC', '#16A34A'],
-      valueClass: flow.probable.totalUnits < 0 ? 'negative' : 'probable',
       x: 850,
     },
   ];
   const largestAbsoluteValue = Math.max(
     1,
     ...bars.flatMap((bar) => {
-      const positive = [bar.part.units16, bar.part.units30].filter((value) => value > 0).reduce((sum, value) => sum + value, 0);
-      const negative = [bar.part.units16, bar.part.units30].filter((value) => value < 0).reduce((sum, value) => sum + value, 0);
+      const positive = [bar.visualUnits16, bar.visualUnits30].filter((value) => value > 0).reduce((sum, value) => sum + value, 0);
+      const negative = [bar.visualUnits16, bar.visualUnits30].filter((value) => value < 0).reduce((sum, value) => sum + value, 0);
       return [Math.abs(positive), Math.abs(negative), Math.abs(bar.part.totalUnits)];
     }),
   );
@@ -488,14 +492,43 @@ function StockFlowChart({ flow }) {
 
   const zeroY = y(0);
   const ticks = [extent, extent / 2, 0, -extent / 2, -extent];
-  const barWidth = 156;
+  const barWidth = 150;
+  const plotLeft = 74;
+  const plotRight = 982;
+
+  function positiveTotal(bar) {
+    return [bar.visualUnits16, bar.visualUnits30].filter((value) => value > 0).reduce((sum, value) => sum + value, 0);
+  }
+
+  function negativeTotal(bar) {
+    return [bar.visualUnits16, bar.visualUnits30].filter((value) => value < 0).reduce((sum, value) => sum + value, 0);
+  }
+
+  function connectorValue(bar) {
+    if (bar.key === 'consumption') {
+      return negativeTotal(bar);
+    }
+    return bar.part.totalUnits;
+  }
+
+  function totalLabelY(bar) {
+    const topValue = positiveTotal(bar);
+    const bottomValue = negativeTotal(bar);
+    if (topValue > 0) {
+      return Math.max(28, y(topValue) - 36);
+    }
+    if (bottomValue < 0) {
+      return Math.min(chartBottom - 6, y(bottomValue) + 30);
+    }
+    return zeroY - 28;
+  }
 
   function renderSegments(bar) {
     let positiveBase = 0;
     let negativeBase = 0;
     return [
-      { key: '16', value: bar.part.units16, color: bar.colors[0] },
-      { key: '30', value: bar.part.units30, color: bar.colors[1] },
+      { key: '16', label: '16M', value: bar.visualUnits16, boxes: Math.abs(bar.part.boxes16), color: bar.colors[0] },
+      { key: '30', label: '30M', value: bar.visualUnits30, boxes: Math.abs(bar.part.boxes30), color: bar.colors[1] },
     ].filter((segment) => Number.isFinite(segment.value) && segment.value !== 0)
       .map((segment) => {
         const start = segment.value >= 0 ? positiveBase : negativeBase;
@@ -509,29 +542,47 @@ function StockFlowChart({ flow }) {
         const y2 = y(end);
         const rectY = Math.min(y1, y2);
         const height = Math.max(2, Math.abs(y2 - y1));
+        const labelY = rectY + (height / 2);
+        const shouldShowSegmentLabel = height >= 32 && segment.boxes > 0;
         return (
-          <rect
-            fill={segment.color}
-            height={height}
-            key={`${bar.key}-${segment.key}`}
-            rx="5"
-            width={barWidth}
-            x={bar.x - (barWidth / 2)}
-            y={rectY}
-          />
+          <g key={`${bar.key}-${segment.key}`}>
+            <rect
+              fill={segment.color}
+              height={height}
+              rx="7"
+              width={barWidth}
+              x={bar.x - (barWidth / 2)}
+              y={rectY}
+            />
+            {shouldShowSegmentLabel ? (
+              <text
+                className="stock-flow-segment-label"
+                dominantBaseline="middle"
+                textAnchor="middle"
+                x={bar.x}
+                y={labelY}
+              >
+                <tspan>{segment.label}</tspan>
+                <tspan dx="6">{formatInteger(segment.boxes)} cx</tspan>
+              </text>
+            ) : null}
+          </g>
         );
       });
   }
 
-  function barLabelY(bar) {
-    const positiveTotal = [bar.part.units16, bar.part.units30]
-      .filter((value) => value > 0)
-      .reduce((sum, value) => sum + value, 0);
-    const negativeTotal = [bar.part.units16, bar.part.units30]
-      .filter((value) => value < 0)
-      .reduce((sum, value) => sum + value, 0);
-    const reference = positiveTotal || negativeTotal || bar.part.totalUnits;
-    return y(reference / 2);
+  function renderConnector(bar, nextBar) {
+    const startX = bar.x + (barWidth / 2) + 8;
+    const endX = nextBar.x - (barWidth / 2) - 8;
+    const middleX = startX + ((endX - startX) / 2);
+    const startY = y(connectorValue(bar));
+    const endY = y(connectorValue(nextBar));
+    return (
+      <path
+        className="stock-flow-connector"
+        d={`M ${startX} ${startY} H ${middleX} V ${endY} H ${endX}`}
+      />
+    );
   }
 
   return (
@@ -539,50 +590,48 @@ function StockFlowChart({ flow }) {
       <div className="stock-flow-chart-title">
         <BarChart3 size={19} aria-hidden="true" />
         <strong>Visão do fluxo de estoque</strong>
+        <div className="stock-flow-legend" aria-hidden="true">
+          <span><i className="legend-16" />16M</span>
+          <span><i className="legend-30" />30M</span>
+        </div>
         <span>{flow.label}</span>
       </div>
       <svg
         aria-label={`Fluxo de estoque de ${flow.label}. Estoque iniciado em ${formatInteger(flow.opening.totalBoxes)} caixas, consumo de ${formatInteger(flow.consumption.totalBoxes)} caixas, saldo de ${formatInteger(flow.balance.totalBoxes)} caixas e estoque provável de ${formatInteger(flow.probable.totalBoxes)} caixas.`}
         role="img"
-        viewBox="0 0 1040 340"
+        viewBox="0 0 1040 410"
       >
         {ticks.map((tick) => (
           <g key={tick}>
-            <line className="stock-flow-grid-line" x1="72" x2="980" y1={y(tick)} y2={y(tick)} />
+            <line className="stock-flow-grid-line" x1={plotLeft} x2={plotRight} y1={y(tick)} y2={y(tick)} />
             <text className="stock-flow-axis-label" textAnchor="end" x="62" y={y(tick) + 4}>
               {formatInteger(Math.round(tick))}
             </text>
           </g>
         ))}
-        <line className="stock-flow-zero-line" x1="72" x2="980" y1={zeroY} y2={zeroY} />
+        <line className="stock-flow-zero-line" x1={plotLeft} x2={plotRight} y1={zeroY} y2={zeroY} />
 
         {bars.map((bar, index) => (
-          <g key={bar.key}>
+          index < bars.length - 1 ? <g key={`connector-${bar.key}`}>{renderConnector(bar, bars[index + 1])}</g> : null
+        ))}
+
+        {bars.map((bar) => (
+          <g key={`bar-${bar.key}`}>
+            <text className="stock-flow-step-title" textAnchor="middle" x={bar.x} y={totalLabelY(bar)}>
+              {bar.title}
+            </text>
+            <text className="stock-flow-step-total" textAnchor="middle" x={bar.x} y={totalLabelY(bar) + 23}>
+              {formatInteger(Math.abs(bar.part.totalBoxes))} cx
+            </text>
+            <text className="stock-flow-step-units" textAnchor="middle" x={bar.x} y={totalLabelY(bar) + 42}>
+              {formatInteger(bar.part.totalUnits)} un.
+            </text>
             {renderSegments(bar)}
-            {bar.part.totalBoxes ? (
-              <text
-                className="stock-flow-bar-inside-label"
-                dominantBaseline="middle"
-                textAnchor="middle"
-                x={bar.x}
-                y={barLabelY(bar)}
-              >
-                {formatInteger(bar.part.totalBoxes)} cx
-              </text>
-            ) : null}
-            <text className="stock-flow-category" textAnchor="middle" x={bar.x} y="314">{bar.label}</text>
-            {index < bars.length - 1 ? (
-              <line
-                className="stock-flow-connector"
-                x1={bar.x + (barWidth / 2)}
-                x2={bars[index + 1].x - (barWidth / 2)}
-                y1={y(bar.part.totalUnits)}
-                y2={y(bar.part.totalUnits)}
-              />
-            ) : null}
+            <text className="stock-flow-category" textAnchor="middle" x={bar.x} y="382">{bar.label}</text>
           </g>
         ))}
       </svg>
+      <p className="stock-flow-chart-note">Base: Compras_Bobinas. O consumo é exibido como saída e o saldo pode misturar 16M e 30M acima/abaixo da linha zero.</p>
     </div>
   );
 }
