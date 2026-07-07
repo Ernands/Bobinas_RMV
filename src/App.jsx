@@ -355,6 +355,11 @@ export default function App() {
     [records, filters, bobinasReferenceDateField],
   );
 
+  const bobinasExitFilteredRecords = useMemo(
+    () => applyFilters(records, filters, 'exitMonth'),
+    [records, filters],
+  );
+
   const analytics = useMemo(
     () => buildAnalytics(filteredRecords, rawPurchases, includePartialMonth, {
       referenceDateField: bobinasReferenceDateField,
@@ -577,6 +582,7 @@ export default function App() {
           {activeTab === 'overview' ? (
             <Overview
               {...pageProps}
+              bobinasExitRecords={bobinasExitFilteredRecords}
               bobinasFilters={filters}
               consolidatedAnalytics={consolidatedAnalytics}
               consolidatedFilters={consolidatedFilters}

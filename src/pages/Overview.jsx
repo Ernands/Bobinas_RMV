@@ -195,6 +195,10 @@ function hasBase(baseScope, base) {
   return baseScope === 'all' || baseScope === base;
 }
 
+function hasBobbinBaseForMap(baseScope) {
+  return ['all', 'bobinas', 'consolidado'].includes(baseScope);
+}
+
 function normalizeUfName(value) {
   return value && value !== 'Não informado' ? value : 'UF não identificada';
 }
@@ -548,8 +552,6 @@ function addDestinationKey(target, value) {
 
 function buildOverviewMapUfRows({
   bobinasRecords = [],
-  consolidatedRecords = [],
-  consolidatedUfRows = [],
   correiosRecords = [],
 }) {
   const map = new Map();
@@ -583,23 +585,11 @@ function buildOverviewMapUfRows({
     return map.get(name);
   }
 
-  consolidatedUfRows.forEach((row) => {
-    const current = ensure(row.uf);
-    current.destinations = Math.max(current.destinations, row.destinations || 0);
-    current.bobbinCost += row.bobbinCost || 0;
-    current.boxes += row.boxes || 0;
-  });
-
-  consolidatedRecords.forEach((record) => {
-    addDestinationKey(ensure(record.uf), record.destination);
-  });
-
   bobinasRecords.forEach((record) => {
     const current = ensure(record.uf);
     const quantity = Number(record.quantity) || 0;
     const bobbinKey = getBobbinKey(record.bobbinType);
     const config = BOBBIN_CONFIGS[bobbinKey];
-    addDestinationKey(current, record.destination);
     if (config) {
       current.bobbinCost += calculateCost(quantity, config.unitCost);
       current.boxes += ceilBoxes(quantity, config.unitsPerBox);
@@ -995,6 +985,7 @@ function OverviewExecutiveCards({ cards }) {
 
 export default function Overview({
   analytics,
+  bobinasExitRecords = [],
   bobinasFilters,
   consolidatedAnalytics,
   consolidatedFilters,
@@ -1033,24 +1024,16 @@ export default function Overview({
     [baseScope, correiosAnalytics.filteredRecords, mapCallType],
   );
   const includeBobbinCostsOnMap = !mapCallType || mapCallType === 'solicitation';
-  const useConsolidatedOnMap = (
-    hasBase(baseScope, 'consolidado')
-    && includeBobbinCostsOnMap
-    && consolidatedAnalytics.filteredRecords.length > 0
+  const mapBobinasRecords = useMemo(
+    () => (hasBobbinBaseForMap(baseScope) && includeBobbinCostsOnMap ? bobinasExitRecords : []),
+    [baseScope, bobinasExitRecords, includeBobbinCostsOnMap],
   );
-  const useBobinasFallbackOnMap = hasBase(baseScope, 'bobinas') && includeBobbinCostsOnMap && !useConsolidatedOnMap;
   const overviewUfRows = useMemo(() => buildOverviewMapUfRows({
-    bobinasRecords: useBobinasFallbackOnMap ? analytics.records : [],
-    consolidatedRecords: useConsolidatedOnMap ? consolidatedAnalytics.filteredRecords : [],
-    consolidatedUfRows: useConsolidatedOnMap ? consolidatedAnalytics.ufSummary : [],
+    bobinasRecords: mapBobinasRecords,
     correiosRecords: mapCorreiosRecords,
   }), [
-    analytics.records,
-    consolidatedAnalytics.filteredRecords,
-    consolidatedAnalytics.ufSummary,
+    mapBobinasRecords,
     mapCorreiosRecords,
-    useBobinasFallbackOnMap,
-    useConsolidatedOnMap,
   ]);
   const filteredMatrixRows = useMemo(() => {
     const query = matrixSearch.trim().toLowerCase();
