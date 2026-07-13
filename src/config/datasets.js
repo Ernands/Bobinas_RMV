@@ -24,6 +24,14 @@ export const DATASET_CONFIGS = [
     enabled: true,
   },
   {
+    id: 'substituicoes',
+    sheetName: 'Substituição_Equipamentos',
+    gid: '796438736',
+    label: 'Substituição_Equipamentos',
+    type: 'substitutions',
+    enabled: true,
+  },
+  {
     id: 'compras',
     sheetName: 'Compras_Bobinas',
     gid: '1226160452',

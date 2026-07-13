@@ -59,6 +59,23 @@ const PURCHASES_COLUMN_HINTS = [
   'total valor',
 ];
 
+const SUBSTITUTION_COLUMN_HINTS = [
+  'destino',
+  'coban',
+  'uf',
+  'loja',
+  'chamado',
+  'chamados',
+  'equipamentos',
+  'serie',
+  'série',
+  'patrimonio',
+  'patrimônio',
+  'data',
+  'modalidade',
+  'erros gerais',
+];
+
 function toColumnKey(value) {
   return normalizeText(value).replace(/[^a-z0-9]/g, '');
 }
@@ -89,6 +106,11 @@ export function detectDatasetType(rows) {
   const correiosScore = scoreHeaders(headers, CORREIOS_COLUMN_HINTS);
   const consolidadoScore = scoreHeaders(headers, CONSOLIDADO_COLUMN_HINTS);
   const purchasesScore = scoreHeaders(headers, PURCHASES_COLUMN_HINTS);
+  const substitutionScore = scoreHeaders(headers, SUBSTITUTION_COLUMN_HINTS);
+
+  if (substitutionScore >= 7) {
+    return 'substituicoes';
+  }
 
   if (purchasesScore >= 6) {
     return 'compras';

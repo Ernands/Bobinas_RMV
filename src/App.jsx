@@ -12,6 +12,7 @@ import Exports from './pages/Exports';
 import Correios from './pages/Correios';
 import PurchaseForecast from './pages/PurchaseForecast';
 import CriticalPoints from './pages/CriticalPoints';
+import Substitutions from './pages/Substitutions';
 import { DATASET_CONFIGS, getDatasetConfig } from './config/datasets';
 import { getActiveGroupId, getNavGroups, getPageMeta } from './config/navigation';
 import { applyFilters, buildAnalytics } from './utils/calculations';
@@ -32,6 +33,7 @@ import { normalizeConsolidatedRows } from './utils/consolidatedNormalization';
 import { normalizeCorreiosRows } from './utils/correiosNormalization';
 import { normalizeRows } from './utils/normalization';
 import { normalizePurchasePlanningRows } from './utils/purchasePlanningNormalization';
+import { normalizeSubstitutionRows } from './utils/substitutionNormalization';
 import { loadDataSourceUrl, loadPurchases, saveDataSourceUrl, savePurchases } from './utils/storage';
 
 const EMPTY_FILTERS = {
@@ -183,6 +185,9 @@ function normalizeDatasetRows(datasetId, rows) {
   }
   if (config?.type === 'purchases') {
     return normalizePurchasePlanningRows(rows);
+  }
+  if (config?.type === 'substitutions') {
+    return normalizeSubstitutionRows(rows);
   }
   return normalizeGenericRows(rows);
 }
@@ -506,6 +511,9 @@ export default function App() {
     if (loadedIds.length === 1 && loadedIds[0] === 'compras') {
       setActiveTab('purchases');
     }
+    if (loadedIds.length === 1 && loadedIds[0] === 'substituicoes') {
+      setActiveTab('substitutions');
+    }
   }
 
   function savePurchase(purchase) {
@@ -626,6 +634,12 @@ export default function App() {
               filters={correiosFilters}
               hasData={correiosRecords.length > 0}
               onFiltersChange={setCorreiosFilters}
+            />
+          ) : null}
+          {activeTab === 'substitutions' ? (
+            <Substitutions
+              correiosRecords={correiosRecords}
+              datasetState={datasets.substituicoes}
             />
           ) : null}
           {activeTab === 'forecast' ? <PurchaseForecast {...pageProps} /> : null}

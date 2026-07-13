@@ -98,6 +98,12 @@ export const NAV_GROUPS = [
         subtitle: 'Envios, custos e serviços dos Correios',
       },
       {
+        id: 'substitutions',
+        label: 'Substituições',
+        icon: PackageOpen,
+        subtitle: 'Substituição de equipamentos, custos e erros',
+      },
+      {
         id: 'correios-costs',
         label: 'Custos por Serviço',
         icon: BarChart3,
