@@ -422,7 +422,7 @@ export default function Substitutions({ correiosRecords = [], datasetState }) {
         <section className="section-heading">
           <div>
             <p className="eyebrow">Substituição_Equipamentos</p>
-            <h2>Substituições</h2>
+            <h2>Substituição de Equipamentos</h2>
             <p>Carregue a aba Substituição_Equipamentos na Fonte de dados para visualizar os indicadores.</p>
           </div>
         </section>
@@ -439,7 +439,7 @@ export default function Substitutions({ correiosRecords = [], datasetState }) {
       <section className="section-heading split">
         <div>
           <p className="eyebrow">Substituição_Equipamentos</p>
-          <h2>Substituições</h2>
+          <h2>Substituição de Equipamentos</h2>
           <p>Envios, custos, materiais, erros e UF com custo cruzado pela base Envios Correios.</p>
         </div>
       </section>
