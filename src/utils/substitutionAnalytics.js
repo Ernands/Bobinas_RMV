@@ -101,12 +101,30 @@ function buildCorreiosCallIndex(records = []) {
         cost: 0,
         weight: 0,
         shipments: 0,
+        pac: 0,
+        pacCost: 0,
+        sedex: 0,
+        sedexCost: 0,
+        reversos: 0,
+        reverseCost: 0,
         records: [],
       };
 
       current.cost += Number(record.serviceValue) || 0;
       current.weight += Number(record.weightKg) || 0;
       current.shipments += 1;
+      if (record.isPac) {
+        current.pac += 1;
+        current.pacCost += Number(record.serviceValue) || 0;
+      }
+      if (record.isSedex) {
+        current.sedex += 1;
+        current.sedexCost += Number(record.serviceValue) || 0;
+      }
+      if (record.isReverse) {
+        current.reversos += 1;
+        current.reverseCost += Number(record.serviceValue) || 0;
+      }
       current.records.push(record);
       map.set(key, current);
     });
@@ -126,6 +144,12 @@ function enrichRecords(records, correiosRecords) {
       shipmentCost: correios?.cost || 0,
       shipmentWeight: correios?.weight || 0,
       shipmentCount: correios?.shipments || 0,
+      shipmentPac: correios?.pac || 0,
+      shipmentPacCost: correios?.pacCost || 0,
+      shipmentSedex: correios?.sedex || 0,
+      shipmentSedexCost: correios?.sedexCost || 0,
+      shipmentReversos: correios?.reversos || 0,
+      shipmentReverseCost: correios?.reverseCost || 0,
       matchedCorreios: Boolean(correios),
       dateLabel: formatDateBR(record.date),
     };
@@ -192,16 +216,92 @@ function applyFilters(records, filters) {
   });
 }
 
-function buildMonthlyShipping(rows) {
-  const base = makeMonthValues(() => ({ count: 0, cost: 0 }));
+function buildShipmentGroups(rows) {
+  const map = new Map();
 
   rows.forEach((record) => {
-    const month = monthKeyToMonthConfig(record.monthKey);
+    const key = record.callNumber ? `call:${record.callNumber}` : `row:${record.id}`;
+    const current = map.get(key) || {
+      id: key,
+      callNumber: record.callNumber,
+      records: [],
+      destination: record.destination,
+      coban: record.coban,
+      uf: record.uf,
+      monthKey: record.monthKey,
+      shipmentCost: record.shipmentCost,
+      shipmentWeight: record.shipmentWeight,
+      shipmentCount: 1,
+      shipmentPac: record.shipmentPac,
+      shipmentPacCost: record.shipmentPacCost,
+      shipmentSedex: record.shipmentSedex,
+      shipmentSedexCost: record.shipmentSedexCost,
+      shipmentReversos: record.shipmentReversos,
+      shipmentReverseCost: record.shipmentReverseCost,
+      matchedCorreios: record.matchedCorreios,
+      equipmentParts: [],
+    };
+
+    current.records.push(record);
+    current.equipmentParts.push(...getEquipmentParts(record));
+    if (!current.monthKey && record.monthKey) {
+      current.monthKey = record.monthKey;
+    }
+    if (!isKnownValue(current.destination) && isKnownValue(record.destination)) {
+      current.destination = record.destination;
+    }
+    if (!isKnownValue(current.coban) && isKnownValue(record.coban)) {
+      current.coban = record.coban;
+    }
+    if (!isKnownValue(current.uf) && isKnownValue(record.uf)) {
+      current.uf = record.uf;
+    }
+    map.set(key, current);
+  });
+
+  return Array.from(map.values()).map((group) => ({
+    ...group,
+    equipmentParts: group.equipmentParts.length ? group.equipmentParts : ['Não informado'],
+  }));
+}
+
+function markUniqueShipmentCosts(rows) {
+  const seen = new Set();
+
+  return rows.map((record) => {
+    const key = record.callNumber ? `call:${record.callNumber}` : `row:${record.id}`;
+    const isFirstOccurrence = !seen.has(key);
+    seen.add(key);
+    return {
+      ...record,
+      displayShipmentCost: isFirstOccurrence ? record.shipmentCost : 0,
+      displayShipmentWeight: isFirstOccurrence ? record.shipmentWeight : 0,
+      isFirstShipmentOccurrence: isFirstOccurrence,
+    };
+  });
+}
+
+function buildMonthlyShipping(groups) {
+  const base = makeMonthValues(() => ({
+    count: 0,
+    cost: 0,
+    pac: 0,
+    pacCost: 0,
+    sedex: 0,
+    sedexCost: 0,
+  }));
+
+  groups.forEach((group) => {
+    const month = monthKeyToMonthConfig(group.monthKey);
     if (!month) {
       return;
     }
     base[month.key].count += 1;
-    base[month.key].cost += record.shipmentCost;
+    base[month.key].cost += group.shipmentCost;
+    base[month.key].pac += group.shipmentPac;
+    base[month.key].pacCost += group.shipmentPacCost;
+    base[month.key].sedex += group.shipmentSedex;
+    base[month.key].sedexCost += group.shipmentSedexCost;
   });
 
   return {
@@ -209,6 +309,10 @@ function buildMonthlyShipping(rows) {
     months: base,
     totalCount: sumRows(Object.values(base), (row) => row.count),
     totalCost: sumRows(Object.values(base), (row) => row.cost),
+    totalPac: sumRows(Object.values(base), (row) => row.pac),
+    totalPacCost: sumRows(Object.values(base), (row) => row.pacCost),
+    totalSedex: sumRows(Object.values(base), (row) => row.sedex),
+    totalSedexCost: sumRows(Object.values(base), (row) => row.sedexCost),
   };
 }
 
@@ -258,37 +362,43 @@ function buildMaterialRows(rows) {
   return Array.from(map.values()).sort((a, b) => b.total - a.total || String(a.material).localeCompare(String(b.material), 'pt-BR'));
 }
 
-function buildErrorEquipment(rows) {
+function buildErrorEquipment(groups) {
   const map = new Map();
 
-  rows.forEach((record) => {
-    const error = record.error || 'Não informado';
-    const current = map.get(error) || {
-      id: error,
-      error,
-      equipment: Object.fromEntries(SUBSTITUTION_EQUIPMENT_COLUMNS.map((name) => [name, 0])),
-      cost: 0,
-      total: 0,
-    };
-    getEquipmentParts(record).forEach((part) => {
-      const matchedEquipment = SUBSTITUTION_EQUIPMENT_COLUMNS.find((name) => canonical(part) === canonical(name));
-      if (matchedEquipment) {
-        current.equipment[matchedEquipment] += 1;
-      }
+  groups.forEach((group) => {
+    const errors = Array.from(new Set(group.records.map((record) => record.error || 'Não informado')));
+    errors.forEach((error) => {
+      const current = map.get(error) || {
+        id: error,
+        error,
+        equipment: Object.fromEntries(SUBSTITUTION_EQUIPMENT_COLUMNS.map((name) => [name, 0])),
+        cost: 0,
+        total: 0,
+      };
+      group.records
+        .filter((record) => (record.error || 'Não informado') === error)
+        .forEach((record) => {
+          getEquipmentParts(record).forEach((part) => {
+            const matchedEquipment = SUBSTITUTION_EQUIPMENT_COLUMNS.find((name) => canonical(part) === canonical(name));
+            if (matchedEquipment) {
+              current.equipment[matchedEquipment] += 1;
+            }
+          });
+        });
+      current.cost += group.shipmentCost;
+      current.total += 1;
+      map.set(error, current);
     });
-    current.cost += record.shipmentCost;
-    current.total += 1;
-    map.set(error, current);
   });
 
   return Array.from(map.values()).sort((a, b) => b.total - a.total || a.error.localeCompare(b.error, 'pt-BR'));
 }
 
-function buildUfRows(rows) {
+function buildUfRows(groups) {
   const map = new Map();
 
-  rows.forEach((record) => {
-    const uf = record.uf || 'Não informado';
+  groups.forEach((group) => {
+    const uf = group.uf || 'Não informado';
     const current = map.get(uf) || {
       id: uf,
       uf,
@@ -296,12 +406,12 @@ function buildUfRows(rows) {
       totalCount: 0,
       totalCost: 0,
     };
-    const month = monthKeyToMonthConfig(record.monthKey);
+    const month = monthKeyToMonthConfig(group.monthKey);
     if (month) {
       current.months[month.key].count += 1;
-      current.months[month.key].cost += record.shipmentCost;
+      current.months[month.key].cost += group.shipmentCost;
       current.totalCount += 1;
-      current.totalCost += record.shipmentCost;
+      current.totalCost += group.shipmentCost;
     }
     map.set(uf, current);
   });
@@ -309,11 +419,11 @@ function buildUfRows(rows) {
   return Array.from(map.values()).sort((a, b) => b.totalCount - a.totalCount || a.uf.localeCompare(b.uf, 'pt-BR'));
 }
 
-function buildTopDestinations(rows) {
+function buildTopDestinations(groups) {
   const map = new Map();
 
-  rows.forEach((record) => {
-    const destination = isKnownValue(record.destination) ? record.destination : record.coban || 'Não informado';
+  groups.forEach((group) => {
+    const destination = isKnownValue(group.destination) ? group.destination : group.coban || 'Não informado';
     const key = canonical(destination) || destination;
     const current = map.get(key) || {
       id: key,
@@ -327,13 +437,13 @@ function buildTopDestinations(rows) {
       outros: 0,
     };
 
-    if (isKnownValue(record.coban)) {
-      current.cobans.add(record.coban);
+    if (isKnownValue(group.coban)) {
+      current.cobans.add(group.coban);
     }
 
     current.shipments += 1;
-    current.cost += record.shipmentCost;
-    getEquipmentParts(record).forEach((part) => {
+    current.cost += group.shipmentCost;
+    group.equipmentParts.forEach((part) => {
       const category = classifyEquipmentPart(part);
       current[category] += 1;
     });
@@ -372,26 +482,29 @@ export function buildSubstitutionAnalytics(records = [], correiosRecords = [], f
     year: selectedYear,
   };
   const filteredRecords = applyFilters(enrichedRecords, effectiveFilters);
-  const monthlyShipping = buildMonthlyShipping(filteredRecords);
+  const displayRecords = markUniqueShipmentCosts(filteredRecords);
+  const shipmentGroups = buildShipmentGroups(filteredRecords);
+  const monthlyShipping = buildMonthlyShipping(shipmentGroups);
   const materialRows = buildMaterialRows(filteredRecords);
   const errorRows = buildRowsByMonth(filteredRecords, 'error', 'error');
-  const errorEquipmentRows = buildErrorEquipment(filteredRecords);
-  const ufRows = buildUfRows(filteredRecords);
-  const topDestinations = buildTopDestinations(filteredRecords);
+  const errorEquipmentRows = buildErrorEquipment(shipmentGroups);
+  const ufRows = buildUfRows(shipmentGroups);
+  const topDestinations = buildTopDestinations(shipmentGroups);
   const topErrors = errorRows.slice(0, 5);
 
   return {
     selectedYear,
     filters: effectiveFilters,
-    filteredRecords,
+    filteredRecords: displayRecords,
     options: buildOptions(records, selectedYear),
     summary: {
-      shipments: filteredRecords.length,
+      shipments: shipmentGroups.length,
       uniqueDestinations: new Set(filteredRecords.map((record) => record.destination).filter(isKnownValue).map(canonical)).size,
-      totalWeight: sumRows(filteredRecords, (record) => record.shipmentWeight),
-      totalCost: sumRows(filteredRecords, (record) => record.shipmentCost),
-      unmatchedCalls: filteredRecords.filter((record) => !record.matchedCorreios).length,
+      totalWeight: sumRows(shipmentGroups, (group) => group.shipmentWeight),
+      totalCost: sumRows(shipmentGroups, (group) => group.shipmentCost),
+      unmatchedCalls: shipmentGroups.filter((group) => !group.matchedCorreios).length,
     },
+    shipmentGroups,
     monthlyShipping,
     materialRows,
     errorRows,

@@ -305,6 +305,7 @@ export default function App() {
   const correiosRecords = datasets.correios?.records || [];
   const consolidatedRecords = datasets.consolidado?.records || [];
   const purchasePlanningRecords = datasets.compras?.records || [];
+  const substitutionRecords = datasets.substituicoes?.records || [];
 
   useEffect(() => {
     savePurchases(rawPurchases);
@@ -594,6 +595,7 @@ export default function App() {
               bobinasFilters={filters}
               consolidatedAnalytics={consolidatedAnalytics}
               consolidatedFilters={consolidatedFilters}
+              correiosRecords={correiosRecords}
               correiosAnalytics={correiosAnalytics}
               correiosFilters={correiosFilters}
               datasetStates={datasets}
@@ -604,6 +606,7 @@ export default function App() {
               onCorreiosFiltersChange={setCorreiosFilters}
               overviewOptions={overviewOptions}
               planningRecords={purchasePlanningRecords}
+              substitutionRecords={substitutionRecords}
             />
           ) : null}
           {activeTab === 'monthly' ? <MonthlyDemand {...pageProps} /> : null}

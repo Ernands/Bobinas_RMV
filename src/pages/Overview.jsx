@@ -34,6 +34,7 @@ import BrazilUfMap from '../components/BrazilUfMap';
 import ChartCard from '../components/ChartCard';
 import DataTable from '../components/DataTable';
 import PurchaseAnnualSummary from '../components/PurchaseAnnualSummary';
+import SubstitutionMonthlyShippingTable from '../components/SubstitutionMonthlyShippingTable';
 import { CONSOLIDATED_MONTHS } from '../utils/consolidatedConstants';
 import {
   BOBBIN_CONFIGS,
@@ -44,6 +45,10 @@ import {
   formatPercent,
   getBobbinKey,
 } from '../utils/calculations';
+import {
+  buildSubstitutionAnalytics,
+  EMPTY_SUBSTITUTION_FILTERS,
+} from '../utils/substitutionAnalytics';
 
 const BASE_OPTIONS = [
   { value: 'all', label: 'Todas' },
@@ -168,6 +173,24 @@ function DashboardEmptyState() {
 function monthNumberToConsolidatedKey(monthNumber) {
   const index = Number(monthNumber) - 1;
   return CONSOLIDATED_MONTHS[index]?.key || '';
+}
+
+function toMonthNumber(value) {
+  if (!value) {
+    return '';
+  }
+  const text = String(value);
+  if (/^\d{4}-\d{2}$/.test(text)) {
+    return text.slice(5, 7);
+  }
+  const consolidatedIndex = CONSOLIDATED_MONTHS.findIndex((month) => month.key === text);
+  if (consolidatedIndex >= 0) {
+    return String(consolidatedIndex + 1).padStart(2, '0');
+  }
+  if (/^\d{1,2}$/.test(text)) {
+    return text.padStart(2, '0');
+  }
+  return '';
 }
 
 function monthRowsForYear(year) {
@@ -989,6 +1012,7 @@ export default function Overview({
   bobinasFilters,
   consolidatedAnalytics,
   consolidatedFilters,
+  correiosRecords = [],
   correiosAnalytics,
   correiosFilters,
   hasConsolidatedData,
@@ -999,6 +1023,7 @@ export default function Overview({
   onCorreiosFiltersChange,
   overviewOptions,
   planningRecords = [],
+  substitutionRecords = [],
 }) {
   const [baseScope, setBaseScope] = useState('all');
   const [ufMetric, setUfMetric] = useState('shipments');
@@ -1007,6 +1032,16 @@ export default function Overview({
   const [matrixSearch, setMatrixSearch] = useState('');
   const [isInfoOpen, setIsInfoOpen] = useState(false);
   const selectedYear = latestYear(overviewOptions, bobinasFilters, correiosAnalytics, consolidatedAnalytics);
+  const substitutionOverviewFilters = useMemo(() => ({
+    ...EMPTY_SUBSTITUTION_FILTERS,
+    year: selectedYear,
+    month: toMonthNumber(correiosFilters.month || bobinasFilters.referenceMonth || consolidatedFilters.month),
+    uf: correiosFilters.uf || bobinasFilters.uf || consolidatedFilters.uf || '',
+  }), [bobinasFilters.referenceMonth, bobinasFilters.uf, consolidatedFilters.month, consolidatedFilters.uf, correiosFilters.month, correiosFilters.uf, selectedYear]);
+  const substitutionOverviewAnalytics = useMemo(
+    () => buildSubstitutionAnalytics(substitutionRecords, correiosRecords, substitutionOverviewFilters),
+    [correiosRecords, substitutionOverviewFilters, substitutionRecords],
+  );
   const monthlyRows = useMemo(() => buildOverviewMonthlyRows({
     analytics,
     baseScope,
@@ -1272,7 +1307,7 @@ export default function Overview({
       </section>
 
       <section className="overview-report-stack">
-        <ChartCard title="Relatório por faixa de transações" subtitle="Transações referentes ao mês anterior">
+        <ChartCard title="Relatório Bobinas por faixa de transações" subtitle="Transações referentes ao mês anterior">
           <DataTable
             columns={[
               { key: 'range', label: 'Transações', sortable: false, render: (row) => (row.isTotal ? <strong>{row.range}</strong> : row.range) },
@@ -1287,7 +1322,11 @@ export default function Overview({
           <p className="table-note">* Transações referente ao mês anterior.</p>
         </ChartCard>
 
-        <ChartCard title="Relatório mensal" subtitle="Solicitações, envios, caixas e custos de Janeiro a Dezembro">
+        <ChartCard title="Quantidade Substituições e Custo" subtitle="Substituições por chamado com custo Correios cruzado.">
+          <SubstitutionMonthlyShippingTable monthlyShipping={substitutionOverviewAnalytics.monthlyShipping} />
+        </ChartCard>
+
+        <ChartCard title="Relatório Bobinas mensal" subtitle="Solicitações, envios, caixas e custos de Janeiro a Dezembro">
           <DataTable
             columns={[
               { key: 'metric', label: '', sortable: false },
@@ -1304,7 +1343,7 @@ export default function Overview({
         </ChartCard>
       </section>
 
-      <ChartCard title="Matriz anual por tipo de chamado" subtitle="Quantidade de envios ou valor gasto por mês">
+      <ChartCard title="Matriz anual por tipo de chamado – Custo Correios" subtitle="Quantidade de envios ou valor gasto por mês">
         <div className="matrix-toolbar">
           <button
             className={`button ${matrixMode === 'count' ? 'primary' : 'secondary'}`}

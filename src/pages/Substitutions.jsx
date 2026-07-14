@@ -22,6 +22,7 @@ import {
 import ChartCard from '../components/ChartCard';
 import DataTable from '../components/DataTable';
 import MetricCard from '../components/MetricCard';
+import SubstitutionMonthlyShippingTable from '../components/SubstitutionMonthlyShippingTable';
 import { CONSOLIDATED_MONTHS } from '../utils/consolidatedConstants';
 import { formatCurrency, formatDecimal, formatInteger } from '../utils/calculations';
 import {
@@ -89,7 +90,7 @@ function SubstitutionFilters({ analytics, filters, onChange }) {
         </div>
         <div className="heading-actions">
           <span className="filter-summary">
-            {formatInteger(analytics.filteredRecords.length)} envios encontrados
+            {formatInteger(analytics.summary.shipments)} envios encontrados
             {activeCount ? ` - ${activeCount} filtro(s)` : ''}
           </span>
           <button
@@ -180,14 +181,14 @@ function MonthlyShippingChart({ analytics }) {
   const [mode, setMode] = useState('count');
   const data = CONSOLIDATED_MONTHS.map((month) => ({
     month: month.shortLabel,
-    envios: analytics.monthlyShipping.months[month.key].count,
+    substituicoes: analytics.monthlyShipping.months[month.key].count,
     custo: analytics.monthlyShipping.months[month.key].cost,
   }));
 
   return (
     <ChartCard
-      title="Quantidade Envios e Custo"
-      subtitle="Alterna entre volume de envios e valor cruzado com Envios Correios."
+      title="Quantidade Substituições e Custo"
+      subtitle="Alterna entre quantidade de substituições e valor cruzado com Envios Correios."
     >
       <div className="chart-toolbar">
         <label className="field inline-field">
@@ -205,9 +206,9 @@ function MonthlyShippingChart({ analytics }) {
           <YAxis tickFormatter={(value) => (mode === 'cost' ? formatCurrency(value) : formatInteger(value))} />
           <Tooltip formatter={(value) => (mode === 'cost' ? formatCurrency(value) : formatInteger(value))} />
           <Bar
-            dataKey={mode === 'cost' ? 'custo' : 'envios'}
+            dataKey={mode === 'cost' ? 'custo' : 'substituicoes'}
             fill={mode === 'cost' ? '#16A34A' : '#2563EB'}
-            name={mode === 'cost' ? 'Custo envio' : 'Envios'}
+            name={mode === 'cost' ? 'Custo envio' : 'Substituições'}
             radius={[4, 4, 0, 0]}
           />
         </BarChart>
@@ -452,9 +453,9 @@ function GeneralTable({ analytics, headers = [] }) {
   columns.splice(2, 0, {
     key: 'shipmentCost',
     label: 'Custo envio',
-    value: (row) => row.shipmentCost,
+    value: (row) => row.displayShipmentCost ?? row.shipmentCost,
     render: (row, value) => <strong>{formatCurrency(value)}</strong>,
-    sortValue: (row) => row.shipmentCost,
+    sortValue: (row) => row.displayShipmentCost ?? row.shipmentCost,
   });
 
   return (
@@ -525,8 +526,8 @@ export default function Substitutions({ correiosRecords = [], datasetState }) {
         <ErrorMonthlyChart analytics={analytics} />
       </section>
 
-      <ChartCard title="Quantidade Envios e Custo" subtitle="Custo de envio cruzado pelo número do chamado.">
-        <MonthlyShippingTable analytics={analytics} />
+      <ChartCard title="Quantidade Substituições e Custo" subtitle="Custo de envio cruzado pelo número do chamado.">
+        <SubstitutionMonthlyShippingTable monthlyShipping={analytics.monthlyShipping} />
       </ChartCard>
 
       <ChartCard title="Top 20 Destinos/Cobans" subtitle="Destinos com mais substituições/envios no recorte.">
