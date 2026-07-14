@@ -10,8 +10,11 @@ import {
   YAxis,
 } from 'recharts';
 import {
+  ChevronDown,
   DollarSign,
+  MapPinned,
   PackageCheck,
+  RotateCcw,
   Scale,
   Search,
   Truck,
@@ -73,20 +76,43 @@ function MonthQuantityCostCell({ count, cost }) {
 }
 
 function SubstitutionFilters({ analytics, filters, onChange }) {
+  const [isOpen, setIsOpen] = useState(false);
   const yearOptions = analytics.options.years.length ? analytics.options.years : [analytics.selectedYear];
+  const activeCount = Object.entries(filters).filter(([key, value]) => Boolean(value) && key !== 'year').length;
 
   return (
-    <section className="filters-panel substitution-filters">
+    <section className={`filters-panel substitution-filters ${isOpen ? 'expanded' : 'collapsed'}`}>
       <div className="section-heading compact">
         <div>
           <p className="eyebrow">Filtros</p>
           <h2>Recorte de substituições</h2>
         </div>
-        <button className="button secondary" type="button" onClick={() => onChange({ ...EMPTY_SUBSTITUTION_FILTERS })}>
-          Limpar filtros
-        </button>
+        <div className="heading-actions">
+          <span className="filter-summary">
+            {formatInteger(analytics.filteredRecords.length)} envios encontrados
+            {activeCount ? ` - ${activeCount} filtro(s)` : ''}
+          </span>
+          <button
+            aria-expanded={isOpen}
+            className={`icon-button filters-toggle ${isOpen ? 'open' : ''}`}
+            title={isOpen ? 'Recolher filtros' : 'Expandir filtros'}
+            type="button"
+            onClick={() => setIsOpen((current) => !current)}
+          >
+            <ChevronDown size={18} aria-hidden="true" />
+          </button>
+          <button
+            className="icon-button"
+            title="Limpar filtros"
+            type="button"
+            onClick={() => onChange({ ...EMPTY_SUBSTITUTION_FILTERS, year: analytics.selectedYear })}
+          >
+            <RotateCcw size={18} aria-hidden="true" />
+          </button>
+        </div>
       </div>
 
+      {isOpen ? (
       <div className="filters-grid">
         <label className="field">
           <span>Ano</span>
@@ -145,6 +171,7 @@ function SubstitutionFilters({ analytics, filters, onChange }) {
           </div>
         </label>
       </div>
+      ) : null}
     </section>
   );
 }
@@ -254,6 +281,39 @@ function MonthlyShippingTable({ analytics }) {
   ];
 
   return <DataTable columns={columns} rows={rows} topScrollbar />;
+}
+
+function TopDestinationsTable({ analytics }) {
+  const columns = [
+    { key: 'destination', label: 'Destino', value: (row) => row.destination },
+    { key: 'cobansText', label: 'Coban(s)', value: (row) => row.cobansText },
+    {
+      key: 'shipments',
+      label: 'Quantidade',
+      value: (row) => row.shipments,
+      render: (row, value) => <strong>{formatInteger(value)}</strong>,
+    },
+    {
+      key: 'cost',
+      label: 'Custo',
+      value: (row) => row.cost,
+      render: (row, value) => <strong>{formatCurrency(value)}</strong>,
+    },
+    { key: 'pos', label: 'POS', value: (row) => row.pos, render: (row, value) => formatInteger(value) },
+    { key: 'smartpos', label: 'SmartPOS', value: (row) => row.smartpos, render: (row, value) => formatInteger(value) },
+    { key: 'lcb', label: 'LCB', value: (row) => row.lcb, render: (row, value) => formatInteger(value) },
+    { key: 'outros', label: 'Outros', value: (row) => row.outros, render: (row, value) => formatInteger(value) },
+  ];
+
+  return (
+    <DataTable
+      columns={columns}
+      defaultSort={{ key: 'shipments', direction: 'desc' }}
+      emptyMessage="Nenhum destino encontrado no recorte."
+      rows={analytics.topDestinations}
+      topScrollbar
+    />
+  );
 }
 
 function MaterialTable({ analytics }) {
@@ -448,6 +508,7 @@ export default function Substitutions({ correiosRecords = [], datasetState }) {
 
       <section className="metrics-grid compact-metrics">
         <MetricCard icon={Truck} title="Quantidade de envios" value={formatInteger(analytics.summary.shipments)} />
+        <MetricCard icon={MapPinned} title="Destinos únicos" value={formatInteger(analytics.summary.uniqueDestinations)} />
         <MetricCard icon={Scale} title="Peso total" value={formatWeight(analytics.summary.totalWeight)} tone="warning" />
         <MetricCard icon={DollarSign} title="Custo total" value={formatCurrency(analytics.summary.totalCost)} tone="success" />
         <MetricCard
@@ -466,6 +527,10 @@ export default function Substitutions({ correiosRecords = [], datasetState }) {
 
       <ChartCard title="Quantidade Envios e Custo" subtitle="Custo de envio cruzado pelo número do chamado.">
         <MonthlyShippingTable analytics={analytics} />
+      </ChartCard>
+
+      <ChartCard title="Top 20 Destinos/Cobans" subtitle="Destinos com mais substituições/envios no recorte.">
+        <TopDestinationsTable analytics={analytics} />
       </ChartCard>
 
       <ChartCard title="Quantidade por Material">

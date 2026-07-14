@@ -39,6 +39,46 @@ function canonical(value) {
   return normalizeText(value).replace(/[^a-z0-9]/g, '');
 }
 
+function isKnownValue(value) {
+  const text = String(value ?? '').trim();
+  return text && text !== '-' && canonical(text) !== canonical('Não informado');
+}
+
+function splitEquipmentParts(value) {
+  const text = String(value ?? '').trim();
+  if (!isKnownValue(text)) {
+    return ['Não informado'];
+  }
+
+  return text
+    .split(/\s*\+\s*/g)
+    .map((part) => part.replace(/\s+/g, ' ').trim())
+    .filter(Boolean);
+}
+
+function getEquipmentParts(record) {
+  return record.equipmentParts?.length ? record.equipmentParts : splitEquipmentParts(record.equipment);
+}
+
+function classifyEquipmentPart(part) {
+  const key = canonical(part);
+
+  if (!key || key === canonical('Não informado')) {
+    return 'outros';
+  }
+  if (key.includes('smartpos')) {
+    return 'smartpos';
+  }
+  if (key.includes('lcb') || key.includes('miniscan') || key.includes('ji200')) {
+    return 'lcb';
+  }
+  if (key.includes('pos') || key.includes('verifone') || key.includes('ingenico')) {
+    return 'pos';
+  }
+
+  return 'outros';
+}
+
 function getCorreiosCallKeys(record) {
   return [
     record.callNumber,
@@ -82,6 +122,7 @@ function enrichRecords(records, correiosRecords) {
     const correios = record.callNumber ? correiosByCall.get(record.callNumber) : null;
     return {
       ...record,
+      equipmentParts: splitEquipmentParts(record.equipment),
       shipmentCost: correios?.cost || 0,
       shipmentWeight: correios?.weight || 0,
       shipmentCount: correios?.shipments || 0,
@@ -122,7 +163,11 @@ function applyFilters(records, filters) {
       return false;
     }
     if (filters.equipment && record.equipment !== filters.equipment) {
-      return false;
+      const selectedEquipment = canonical(filters.equipment);
+      const equipmentMatches = getEquipmentParts(record).some((part) => canonical(part) === selectedEquipment);
+      if (!equipmentMatches && canonical(record.equipment) !== selectedEquipment) {
+        return false;
+      }
     }
     if (from && (!record.date || record.date < from)) {
       return false;
@@ -189,6 +234,30 @@ function buildRowsByMonth(rows, groupKey, labelKey) {
   return Array.from(map.values()).sort((a, b) => b.total - a.total || String(a[labelKey]).localeCompare(String(b[labelKey]), 'pt-BR'));
 }
 
+function buildMaterialRows(rows) {
+  const map = new Map();
+
+  rows.forEach((record) => {
+    getEquipmentParts(record).forEach((part) => {
+      const label = part || 'Não informado';
+      const current = map.get(label) || {
+        id: label,
+        material: label,
+        months: makeMonthValues(() => 0),
+        total: 0,
+      };
+      const month = monthKeyToMonthConfig(record.monthKey);
+      if (month) {
+        current.months[month.key] += 1;
+        current.total += 1;
+      }
+      map.set(label, current);
+    });
+  });
+
+  return Array.from(map.values()).sort((a, b) => b.total - a.total || String(a.material).localeCompare(String(b.material), 'pt-BR'));
+}
+
 function buildErrorEquipment(rows) {
   const map = new Map();
 
@@ -201,10 +270,12 @@ function buildErrorEquipment(rows) {
       cost: 0,
       total: 0,
     };
-    const matchedEquipment = SUBSTITUTION_EQUIPMENT_COLUMNS.find((name) => canonical(record.equipment) === canonical(name));
-    if (matchedEquipment) {
-      current.equipment[matchedEquipment] += 1;
-    }
+    getEquipmentParts(record).forEach((part) => {
+      const matchedEquipment = SUBSTITUTION_EQUIPMENT_COLUMNS.find((name) => canonical(part) === canonical(name));
+      if (matchedEquipment) {
+        current.equipment[matchedEquipment] += 1;
+      }
+    });
     current.cost += record.shipmentCost;
     current.total += 1;
     map.set(error, current);
@@ -238,6 +309,47 @@ function buildUfRows(rows) {
   return Array.from(map.values()).sort((a, b) => b.totalCount - a.totalCount || a.uf.localeCompare(b.uf, 'pt-BR'));
 }
 
+function buildTopDestinations(rows) {
+  const map = new Map();
+
+  rows.forEach((record) => {
+    const destination = isKnownValue(record.destination) ? record.destination : record.coban || 'Não informado';
+    const key = canonical(destination) || destination;
+    const current = map.get(key) || {
+      id: key,
+      destination,
+      cobans: new Set(),
+      shipments: 0,
+      cost: 0,
+      pos: 0,
+      smartpos: 0,
+      lcb: 0,
+      outros: 0,
+    };
+
+    if (isKnownValue(record.coban)) {
+      current.cobans.add(record.coban);
+    }
+
+    current.shipments += 1;
+    current.cost += record.shipmentCost;
+    getEquipmentParts(record).forEach((part) => {
+      const category = classifyEquipmentPart(part);
+      current[category] += 1;
+    });
+    map.set(key, current);
+  });
+
+  return Array.from(map.values())
+    .map((row) => ({
+      ...row,
+      cobansText: row.cobans.size ? Array.from(row.cobans).sort().join(', ') : 'Não informado',
+      cobanCount: row.cobans.size,
+    }))
+    .sort((a, b) => b.shipments - a.shipments || b.cost - a.cost || a.destination.localeCompare(b.destination, 'pt-BR'))
+    .slice(0, 20);
+}
+
 function buildOptions(records = [], selectedYear) {
   const yearRecords = selectedYear
     ? records.filter((record) => record.monthKey?.startsWith(`${selectedYear}-`))
@@ -247,7 +359,7 @@ function buildOptions(records = [], selectedYear) {
     years: getSubstitutionYearOptions(records),
     ufs: Array.from(new Set(yearRecords.map((record) => record.uf).filter(Boolean))).sort(),
     errors: Array.from(new Set(yearRecords.map((record) => record.error).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'pt-BR')),
-    equipments: Array.from(new Set(yearRecords.map((record) => record.equipment).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'pt-BR')),
+    equipments: Array.from(new Set(yearRecords.flatMap((record) => splitEquipmentParts(record.equipment)).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'pt-BR')),
   };
 }
 
@@ -261,10 +373,11 @@ export function buildSubstitutionAnalytics(records = [], correiosRecords = [], f
   };
   const filteredRecords = applyFilters(enrichedRecords, effectiveFilters);
   const monthlyShipping = buildMonthlyShipping(filteredRecords);
-  const materialRows = buildRowsByMonth(filteredRecords, 'equipment', 'material');
+  const materialRows = buildMaterialRows(filteredRecords);
   const errorRows = buildRowsByMonth(filteredRecords, 'error', 'error');
   const errorEquipmentRows = buildErrorEquipment(filteredRecords);
   const ufRows = buildUfRows(filteredRecords);
+  const topDestinations = buildTopDestinations(filteredRecords);
   const topErrors = errorRows.slice(0, 5);
 
   return {
@@ -274,6 +387,7 @@ export function buildSubstitutionAnalytics(records = [], correiosRecords = [], f
     options: buildOptions(records, selectedYear),
     summary: {
       shipments: filteredRecords.length,
+      uniqueDestinations: new Set(filteredRecords.map((record) => record.destination).filter(isKnownValue).map(canonical)).size,
       totalWeight: sumRows(filteredRecords, (record) => record.shipmentWeight),
       totalCost: sumRows(filteredRecords, (record) => record.shipmentCost),
       unmatchedCalls: filteredRecords.filter((record) => !record.matchedCorreios).length,
@@ -282,6 +396,7 @@ export function buildSubstitutionAnalytics(records = [], correiosRecords = [], f
     materialRows,
     errorRows,
     topErrors,
+    topDestinations,
     errorEquipmentRows,
     ufRows,
   };

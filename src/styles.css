@@ -1432,6 +1432,10 @@ tbody tr:last-child td {
   align-items: stretch;
 }
 
+.substitutions-page .metrics-grid.compact-metrics {
+  grid-template-columns: repeat(5, minmax(160px, 1fr));
+}
+
 .substitution-filters .filters-grid {
   grid-template-columns: repeat(4, minmax(150px, 1fr));
 }
