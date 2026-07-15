@@ -219,7 +219,7 @@ function hasBase(baseScope, base) {
 }
 
 function hasBobbinBaseForMap(baseScope) {
-  return ['all', 'bobinas', 'consolidado'].includes(baseScope);
+  return ['all', 'bobinas'].includes(baseScope);
 }
 
 function normalizeUfName(value) {
@@ -401,9 +401,70 @@ function buildSentUnitsByMonth(records = []) {
   return map;
 }
 
+function isBobbinSolicitation(record) {
+  const callType = normalizeText(record.callType);
+  const solicitationCard = CALL_TYPE_CARDS.find((card) => card.id === 'solicitation');
+  return solicitationCard?.aliases.some((alias) => callType === normalizeText(alias));
+}
+
+function buildSentSolicitationRequestsByMonth(records = []) {
+  const map = new Map();
+  records.forEach((record) => {
+    if (!record.exitMonth || !isSentStatus(record.status) || !isBobbinSolicitation(record)) {
+      return;
+    }
+    map.set(record.exitMonth, (map.get(record.exitMonth) || 0) + 1);
+  });
+  return map;
+}
+
+function buildSentSolicitationCostByMonth(records = []) {
+  const map = new Map();
+  records.forEach((record) => {
+    if (!record.exitMonth || !isSentStatus(record.status) || !isBobbinSolicitation(record)) {
+      return;
+    }
+
+    const config = BOBBIN_CONFIGS[getBobbinKey(record.bobbinType)];
+    if (!config) {
+      return;
+    }
+
+    const cost = calculateCost(Number(record.quantity) || 0, config.unitCost);
+    map.set(record.exitMonth, (map.get(record.exitMonth) || 0) + cost);
+  });
+  return map;
+}
+
+function buildSentSolicitationBoxesByMonth(records = []) {
+  const map = new Map();
+  records.forEach((record) => {
+    if (!record.exitMonth || !isSentStatus(record.status) || !isBobbinSolicitation(record)) {
+      return;
+    }
+
+    const bobbinKey = getBobbinKey(record.bobbinType);
+    const config = BOBBIN_CONFIGS[bobbinKey];
+    if (!config) {
+      return;
+    }
+
+    const current = map.get(record.exitMonth) || { boxes16: 0, boxes30: 0 };
+    const boxes = ceilBoxes(Number(record.quantity) || 0, config.unitsPerBox);
+    if (bobbinKey === '16') {
+      current.boxes16 += boxes;
+    } else if (bobbinKey === '30') {
+      current.boxes30 += boxes;
+    }
+    map.set(record.exitMonth, current);
+  });
+  return map;
+}
+
 function buildOverviewMonthlyRows({
   analytics,
   baseScope,
+  bobinasExitRecords,
   consolidatedAnalytics,
   correiosAnalytics,
   hasConsolidatedData,
@@ -411,20 +472,30 @@ function buildOverviewMonthlyRows({
 }) {
   const demandByMonth = new Map(analytics.monthlyDemand.map((row) => [row.monthKey, row]));
   const sentByMonth = buildSentUnitsByMonth(analytics.records);
+  const sentRequestsByMonth = buildSentSolicitationRequestsByMonth(bobinasExitRecords);
+  const sentCostByMonth = buildSentSolicitationCostByMonth(bobinasExitRecords);
+  const sentBoxesByMonth = buildSentSolicitationBoxesByMonth(bobinasExitRecords);
   const consolidatedByMonth = new Map(consolidatedAnalytics.monthly.map((row) => [row.monthKey, row]));
   const correiosByMonth = new Map(correiosAnalytics.monthly.map((row) => [row.monthKey, row]));
   const useBobinas = hasBase(baseScope, 'bobinas');
   const useConsolidado = hasBase(baseScope, 'consolidado');
   const useCorreios = hasBase(baseScope, 'correios');
+  const hasBobinasSentData = useBobinas && bobinasExitRecords?.length > 0;
+  const useConsolidatedCosts = baseScope === 'consolidado';
 
   return monthRowsForYear(selectedYear).map((month) => {
     const demand = demandByMonth.get(month.calendarKey);
     const consolidated = consolidatedByMonth.get(month.key);
     const correios = correiosByMonth.get(month.calendarKey);
+    const sentBoxes = sentBoxesByMonth.get(month.calendarKey);
     const canUseConsolidado = useConsolidado && hasConsolidatedData;
     const requested = canUseConsolidado ? consolidated?.requested || 0 : useBobinas ? demand?.units || 0 : 0;
-    const sent = canUseConsolidado ? consolidated?.shipments || 0 : useBobinas ? sentByMonth.get(month.calendarKey) || 0 : 0;
-    const bobbinCost = canUseConsolidado ? consolidated?.bobbinCost || 0 : useBobinas ? demand?.totalCost || 0 : 0;
+    const sent = canUseConsolidado
+      ? (hasBobinasSentData ? sentRequestsByMonth.get(month.calendarKey) || 0 : consolidated?.shipments || 0)
+      : useBobinas ? sentByMonth.get(month.calendarKey) || 0 : 0;
+    const bobbinCost = canUseConsolidado && useConsolidatedCosts
+      ? consolidated?.bobbinCost || 0
+      : useBobinas ? sentCostByMonth.get(month.calendarKey) || 0 : 0;
     const correiosCost = useCorreios ? correios?.totalCost || 0 : 0;
 
     return {
@@ -436,8 +507,12 @@ function buildOverviewMonthlyRows({
       bobbinCost,
       correiosCost,
       operationCost: bobbinCost + correiosCost,
-      boxes16: canUseConsolidado ? consolidated?.boxes16 || 0 : demand?.minBoxes16 || 0,
-      boxes30: canUseConsolidado ? consolidated?.boxes30 || 0 : demand?.minBoxes30 || 0,
+      boxes16: canUseConsolidado
+        ? (useConsolidatedCosts ? consolidated?.boxes16 || 0 : sentBoxes?.boxes16 || 0)
+        : demand?.minBoxes16 || 0,
+      boxes30: canUseConsolidado
+        ? (useConsolidatedCosts ? consolidated?.boxes30 || 0 : sentBoxes?.boxes30 || 0)
+        : demand?.minBoxes30 || 0,
     };
   });
 }
@@ -1045,12 +1120,17 @@ export default function Overview({
   const monthlyRows = useMemo(() => buildOverviewMonthlyRows({
     analytics,
     baseScope,
+    bobinasExitRecords,
     consolidatedAnalytics,
     correiosAnalytics,
     hasConsolidatedData,
     selectedYear,
-  }), [analytics, baseScope, consolidatedAnalytics, correiosAnalytics, hasConsolidatedData, selectedYear]);
-  const rangeRows = useMemo(() => buildRangeRows(consolidatedAnalytics.rangeAnalysis), [consolidatedAnalytics.rangeAnalysis]);
+  }), [analytics, baseScope, bobinasExitRecords, consolidatedAnalytics, correiosAnalytics, hasConsolidatedData, selectedYear]);
+  const showConsolidatedOverview = baseScope === 'consolidado';
+  const rangeRows = useMemo(
+    () => (showConsolidatedOverview ? buildRangeRows(consolidatedAnalytics.rangeAnalysis) : []),
+    [consolidatedAnalytics.rangeAnalysis, showConsolidatedOverview],
+  );
   const monthlyReportRows = useMemo(() => buildMonthlyReportRows(monthlyRows), [monthlyRows]);
   const mapCorreiosRecords = useMemo(
     () => (hasBase(baseScope, 'correios')
@@ -1063,12 +1143,20 @@ export default function Overview({
     () => (hasBobbinBaseForMap(baseScope) && includeBobbinCostsOnMap ? bobinasExitRecords : []),
     [baseScope, bobinasExitRecords, includeBobbinCostsOnMap],
   );
-  const overviewUfRows = useMemo(() => buildOverviewMapUfRows({
-    bobinasRecords: mapBobinasRecords,
-    correiosRecords: mapCorreiosRecords,
-  }), [
+  const overviewUfRows = useMemo(() => {
+    if (showConsolidatedOverview) {
+      return buildOverviewUfRows(consolidatedAnalytics.ufSummary, []);
+    }
+
+    return buildOverviewMapUfRows({
+      bobinasRecords: mapBobinasRecords,
+      correiosRecords: mapCorreiosRecords,
+    });
+  }, [
+    consolidatedAnalytics.ufSummary,
     mapBobinasRecords,
     mapCorreiosRecords,
+    showConsolidatedOverview,
   ]);
   const filteredMatrixRows = useMemo(() => {
     const query = matrixSearch.trim().toLowerCase();
@@ -1100,9 +1188,9 @@ export default function Overview({
   }, [baseScope, correiosAnalytics.monthly, filteredMatrixRows]);
   const visibleAlerts = useMemo(() => [
     ...(hasBase(baseScope, 'bobinas') ? analytics.alerts.map((alert) => ({ ...alert, title: `Bobinas: ${alert.title}` })) : []),
-    ...(hasBase(baseScope, 'consolidado') ? consolidatedAnalytics.alerts.map((alert) => ({ ...alert, title: `Consolidado: ${alert.title}` })) : []),
+    ...(showConsolidatedOverview ? consolidatedAnalytics.alerts.map((alert) => ({ ...alert, title: `Consolidado: ${alert.title}` })) : []),
     ...(hasBase(baseScope, 'correios') ? correiosAnalytics.alerts.map((alert) => ({ ...alert, title: `Correios: ${alert.title}` })) : []),
-  ].slice(0, 8), [analytics.alerts, baseScope, consolidatedAnalytics.alerts, correiosAnalytics.alerts]);
+  ].slice(0, 8), [analytics.alerts, baseScope, consolidatedAnalytics.alerts, correiosAnalytics.alerts, showConsolidatedOverview]);
   const matrixColumns = useMemo(() => [
     {
       key: 'callType',
@@ -1198,9 +1286,11 @@ export default function Overview({
     })),
   ];
   const topCallType = correiosAnalytics.summary.topCallType;
-  const topRange = consolidatedAnalytics.rangeAnalysis
-    .filter((row) => row.requested > 0)
-    .sort((a, b) => b.requested - a.requested)[0];
+  const topRange = showConsolidatedOverview
+    ? consolidatedAnalytics.rangeAnalysis
+      .filter((row) => row.requested > 0)
+      .sort((a, b) => b.requested - a.requested)[0]
+    : null;
   const impacts = [
     topCallType ? {
       title: 'Tipo de chamado com maior custo',
@@ -1307,20 +1397,22 @@ export default function Overview({
       </section>
 
       <section className="overview-report-stack">
-        <ChartCard title="Relatório Bobinas por faixa de transações" subtitle="Transações referentes ao mês anterior">
-          <DataTable
-            columns={[
-              { key: 'range', label: 'Transações', sortable: false, render: (row) => (row.isTotal ? <strong>{row.range}</strong> : row.range) },
-              { key: 'destinations', label: 'Qt Cobans', sortable: false, value: (row) => formatInteger(row.destinations) },
-              { key: 'percentage', label: '%', sortable: false, value: (row) => formatPercent(row.percentage) },
-              { key: 'requested', label: 'Solicitações', sortable: false, value: (row) => formatInteger(row.requested) },
-              { key: 'boxes16', label: 'Envio 16 m cx', sortable: false, value: (row) => formatInteger(row.boxes16) },
-              { key: 'boxes30', label: 'Envio 30 m cx', sortable: false, value: (row) => formatInteger(row.boxes30) },
-            ]}
-            rows={rangeRows}
-          />
-          <p className="table-note">* Transações referente ao mês anterior.</p>
-        </ChartCard>
+        {showConsolidatedOverview ? (
+          <ChartCard title="Relatório Bobinas por faixa de transações" subtitle="Transações referentes ao mês anterior">
+            <DataTable
+              columns={[
+                { key: 'range', label: 'Transações', sortable: false, render: (row) => (row.isTotal ? <strong>{row.range}</strong> : row.range) },
+                { key: 'destinations', label: 'Qt Cobans', sortable: false, value: (row) => formatInteger(row.destinations) },
+                { key: 'percentage', label: '%', sortable: false, value: (row) => formatPercent(row.percentage) },
+                { key: 'requested', label: 'Solicitações', sortable: false, value: (row) => formatInteger(row.requested) },
+                { key: 'boxes16', label: 'Envio 16 m cx', sortable: false, value: (row) => formatInteger(row.boxes16) },
+                { key: 'boxes30', label: 'Envio 30 m cx', sortable: false, value: (row) => formatInteger(row.boxes30) },
+              ]}
+              rows={rangeRows}
+            />
+            <p className="table-note">* Transações referente ao mês anterior.</p>
+          </ChartCard>
+        ) : null}
 
         <ChartCard title="Quantidade Substituições e Custo" subtitle="Substituições por chamado com custo Correios cruzado.">
           <SubstitutionMonthlyShippingTable monthlyShipping={substitutionOverviewAnalytics.monthlyShipping} />
