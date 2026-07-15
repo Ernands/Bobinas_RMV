@@ -1,4 +1,4 @@
-import { BOBBIN_CONFIGS, ceilBoxes, formatInteger } from './calculations';
+import { BOBBIN_CONFIGS, formatInteger } from './calculations';
 import {
   CONSOLIDATED_MONTHS,
   TRANSACTION_RANGES,
@@ -87,16 +87,26 @@ function getRequestedValue(record, filters) {
   return record.requested;
 }
 
+function equivalentBoxes(units, bobbinType) {
+  const unitsPerBox = BOBBIN_CONFIGS[bobbinType]?.unitsPerBox;
+  return unitsPerBox ? (Number(units) || 0) / unitsPerBox : 0;
+}
+
+function getFilteredUnits(record, field, filters) {
+  const share = filters.month ? getMonthShare(record, filters.month) : 1;
+  return (Number(record[field]) || 0) * share;
+}
+
 function getBoxesValue(record, filters) {
   if (filters.bobbinType === '16') {
-    return ceilBoxes(record.units16, BOBBIN_CONFIGS['16'].unitsPerBox);
+    return equivalentBoxes(getFilteredUnits(record, 'units16', filters), '16');
   }
   if (filters.bobbinType === '30') {
-    return ceilBoxes(record.units30, BOBBIN_CONFIGS['30'].unitsPerBox);
+    return equivalentBoxes(getFilteredUnits(record, 'units30', filters), '30');
   }
   return (
-    ceilBoxes(record.units16, BOBBIN_CONFIGS['16'].unitsPerBox)
-    + ceilBoxes(record.units30, BOBBIN_CONFIGS['30'].unitsPerBox)
+    equivalentBoxes(getFilteredUnits(record, 'units16', filters), '16')
+    + equivalentBoxes(getFilteredUnits(record, 'units30', filters), '30')
   );
 }
 
@@ -227,8 +237,8 @@ function buildMonthly(records) {
   return CONSOLIDATED_MONTHS.map((month) => {
     const requested = sumBy(records, (record) => getMonthValue(record, month.key));
     const shipments = sumBy(records, (record) => record.correios * getMonthShare(record, month.key));
-    const boxes16 = sumBy(records, (record) => record.boxes16 * getMonthShare(record, month.key));
-    const boxes30 = sumBy(records, (record) => record.boxes30 * getMonthShare(record, month.key));
+    const boxes16 = sumBy(records, (record) => equivalentBoxes(record.units16 * getMonthShare(record, month.key), '16'));
+    const boxes30 = sumBy(records, (record) => equivalentBoxes(record.units30 * getMonthShare(record, month.key), '30'));
     const bobbinCost = sumBy(records, (record) => record.bobbinCost * getMonthShare(record, month.key));
     const correiosCost = sumBy(records, (record) => record.correiosCost * getMonthShare(record, month.key));
     const operationCost = sumBy(records, (record) => record.operationCost * getMonthShare(record, month.key));
@@ -250,22 +260,25 @@ function buildMonthly(records) {
   });
 }
 
-function buildTypeComparison(records) {
+function buildTypeComparison(records, filters) {
+  const units16 = sumBy(records, (record) => getFilteredUnits(record, 'units16', filters));
+  const units30 = sumBy(records, (record) => getFilteredUnits(record, 'units30', filters));
+
   return [
     {
       id: '16',
       type: '56 MM X 16 M',
       requests: sumBy(records, (record) => record.boxes16),
-      boxes: sumBy(records, (record) => ceilBoxes(record.units16, BOBBIN_CONFIGS['16'].unitsPerBox)),
-      units: sumBy(records, (record) => record.units16),
+      boxes: equivalentBoxes(units16, '16'),
+      units: units16,
       cost: sumBy(records, (record) => record.cost16),
     },
     {
       id: '30',
       type: '56 MM X 30 M',
       requests: sumBy(records, (record) => record.boxes30),
-      boxes: sumBy(records, (record) => ceilBoxes(record.units30, BOBBIN_CONFIGS['30'].unitsPerBox)),
-      units: sumBy(records, (record) => record.units30),
+      boxes: equivalentBoxes(units30, '30'),
+      units: units30,
       cost: sumBy(records, (record) => record.cost30),
     },
   ];
@@ -298,8 +311,8 @@ function buildUfSummary(records, filters) {
     current.correios += record.correios;
     current.difference += record.difference;
     current.boxes += getBoxesValue(record, filters);
-    current.boxes16 += record.boxes16;
-    current.boxes30 += record.boxes30;
+    current.boxes16 += equivalentBoxes(getFilteredUnits(record, 'units16', filters), '16');
+    current.boxes30 += equivalentBoxes(getFilteredUnits(record, 'units30', filters), '30');
     current.bobbinCost += getBobbinCostValue(record, filters);
     current.correiosCost += record.correiosCost;
     current.operationCost += record.operationCost;
@@ -467,7 +480,7 @@ export function buildConsolidatedAnalytics(records = [], filters = EMPTY_CONSOLI
   const filteredRecords = applyConsolidatedFilters(records, normalizedFilters, selectedYear);
   const summary = buildSummary(filteredRecords, normalizedFilters);
   const monthly = buildMonthly(filteredRecords);
-  const typeComparison = buildTypeComparison(filteredRecords);
+  const typeComparison = buildTypeComparison(filteredRecords, normalizedFilters);
   const ufSummary = buildUfSummary(filteredRecords, normalizedFilters);
   const rankings = buildRankings(filteredRecords, normalizedFilters);
   const rangeAnalysis = buildRangeAnalysis(filteredRecords, normalizedFilters);

@@ -39,7 +39,6 @@ import { CONSOLIDATED_MONTHS } from '../utils/consolidatedConstants';
 import {
   BOBBIN_CONFIGS,
   calculateCost,
-  ceilBoxes,
   formatCurrency,
   formatInteger,
   formatPercent,
@@ -91,7 +90,7 @@ const OVERVIEW_UF_DETAIL_FIELDS = [
   { key: 'pac', label: 'PAC', format: formatInteger },
   { key: 'sedex', label: 'SEDEX', format: formatInteger },
   { key: 'reversos', label: 'Reversos', format: formatInteger },
-  { key: 'boxes', label: 'Caixas de bobinas', format: formatInteger },
+  { key: 'boxes', label: 'Caixas de bobinas', format: formatBoxQuantity },
 ];
 
 const CALL_TYPE_CARDS = [
@@ -160,6 +159,14 @@ const MAP_CALL_TYPE_OPTIONS = [
     label: card.id === 'solicitation' ? 'Bobinas' : card.title,
   })),
 ];
+
+const boxQuantityFormatter = new Intl.NumberFormat('pt-BR', {
+  maximumFractionDigits: 2,
+});
+
+function formatBoxQuantity(value) {
+  return boxQuantityFormatter.format(Number.isFinite(value) ? value : 0);
+}
 
 function DashboardEmptyState() {
   return (
@@ -450,7 +457,7 @@ function buildSentSolicitationBoxesByMonth(records = []) {
     }
 
     const current = map.get(record.exitMonth) || { boxes16: 0, boxes30: 0 };
-    const boxes = ceilBoxes(Number(record.quantity) || 0, config.unitsPerBox);
+    const boxes = (Number(record.quantity) || 0) / config.unitsPerBox;
     if (bobbinKey === '16') {
       current.boxes16 += boxes;
     } else if (bobbinKey === '30') {
@@ -468,6 +475,7 @@ function buildOverviewMonthlyRows({
   consolidatedAnalytics,
   correiosAnalytics,
   hasConsolidatedData,
+  selectedMonth,
   selectedYear,
 }) {
   const demandByMonth = new Map(analytics.monthlyDemand.map((row) => [row.monthKey, row]));
@@ -484,6 +492,7 @@ function buildOverviewMonthlyRows({
   const useConsolidatedCosts = baseScope === 'consolidado';
 
   return monthRowsForYear(selectedYear).map((month) => {
+    const isOutsideSelectedMonth = selectedMonth && month.monthNumber !== selectedMonth;
     const demand = demandByMonth.get(month.calendarKey);
     const consolidated = consolidatedByMonth.get(month.key);
     const correios = correiosByMonth.get(month.calendarKey);
@@ -498,7 +507,7 @@ function buildOverviewMonthlyRows({
       : useBobinas ? sentCostByMonth.get(month.calendarKey) || 0 : 0;
     const correiosCost = useCorreios ? correios?.totalCost || 0 : 0;
 
-    return {
+    const row = {
       id: month.key,
       month: month.shortLabel,
       requested,
@@ -507,12 +516,28 @@ function buildOverviewMonthlyRows({
       bobbinCost,
       correiosCost,
       operationCost: bobbinCost + correiosCost,
-      boxes16: canUseConsolidado
-        ? (useConsolidatedCosts ? consolidated?.boxes16 || 0 : sentBoxes?.boxes16 || 0)
-        : demand?.minBoxes16 || 0,
-      boxes30: canUseConsolidado
-        ? (useConsolidatedCosts ? consolidated?.boxes30 || 0 : sentBoxes?.boxes30 || 0)
-        : demand?.minBoxes30 || 0,
+      boxes16: canUseConsolidado && useConsolidatedCosts
+        ? consolidated?.boxes16 || 0
+        : useBobinas ? sentBoxes?.boxes16 || 0 : 0,
+      boxes30: canUseConsolidado && useConsolidatedCosts
+        ? consolidated?.boxes30 || 0
+        : useBobinas ? sentBoxes?.boxes30 || 0 : 0,
+    };
+
+    if (!isOutsideSelectedMonth) {
+      return row;
+    }
+
+    return {
+      ...row,
+      requested: 0,
+      sent: 0,
+      correiosShipments: 0,
+      bobbinCost: 0,
+      correiosCost: 0,
+      operationCost: 0,
+      boxes16: 0,
+      boxes30: 0,
     };
   });
 }
@@ -554,8 +579,8 @@ function buildMonthlyReportRows(monthlyRows) {
   const metrics = [
     { id: 'requested', label: 'Solicitações', key: 'requested', format: formatInteger },
     { id: 'sent', label: 'Envios', key: 'sent', format: formatInteger },
-    { id: 'boxes16', label: 'Qt Envio Caixa 16 M', key: 'boxes16', format: formatInteger },
-    { id: 'boxes30', label: 'Qt Envio Caixa 30 M', key: 'boxes30', format: formatInteger },
+    { id: 'boxes16', label: 'Qt Envio Caixa 16 M', key: 'boxes16', format: formatBoxQuantity },
+    { id: 'boxes30', label: 'Qt Envio Caixa 30 M', key: 'boxes30', format: formatBoxQuantity },
     { id: 'bobbinCost', label: 'Custo Bobinas', key: 'bobbinCost', format: formatCurrency },
     { id: 'correiosCost', label: 'Custo Correios', key: 'correiosCost', format: formatCurrency },
     { id: 'operationCost', label: 'Custo Total', key: 'operationCost', format: formatCurrency },
@@ -678,6 +703,8 @@ function buildOverviewMapUfRows({
         reverseCost: 0,
         reverseAverage: 0,
         boxes: 0,
+        units16: 0,
+        units30: 0,
       });
     }
     return map.get(name);
@@ -690,7 +717,11 @@ function buildOverviewMapUfRows({
     const config = BOBBIN_CONFIGS[bobbinKey];
     if (config) {
       current.bobbinCost += calculateCost(quantity, config.unitCost);
-      current.boxes += ceilBoxes(quantity, config.unitsPerBox);
+      if (bobbinKey === '16') {
+        current.units16 += quantity;
+      } else if (bobbinKey === '30') {
+        current.units30 += quantity;
+      }
     }
   });
 
@@ -718,10 +749,15 @@ function buildOverviewMapUfRows({
 
   return Array.from(map.values()).map((row) => {
     const destinationCount = row.destinationKeys.size || row.destinations;
+    const boxes = (
+      (row.units16 / BOBBIN_CONFIGS['16'].unitsPerBox)
+      + (row.units30 / BOBBIN_CONFIGS['30'].unitsPerBox)
+    );
     const totalCost = row.correiosCost + row.bobbinCost;
     const cleaned = {
       ...row,
       destinations: destinationCount,
+      boxes,
       totalCost,
       operationCost: totalCost,
       averageCost: row.shipments ? totalCost / row.shipments : 0,
@@ -1107,12 +1143,13 @@ export default function Overview({
   const [matrixSearch, setMatrixSearch] = useState('');
   const [isInfoOpen, setIsInfoOpen] = useState(false);
   const selectedYear = latestYear(overviewOptions, bobinasFilters, correiosAnalytics, consolidatedAnalytics);
+  const selectedMonth = toMonthNumber(correiosFilters.month || bobinasFilters.referenceMonth || consolidatedFilters.month);
   const substitutionOverviewFilters = useMemo(() => ({
     ...EMPTY_SUBSTITUTION_FILTERS,
     year: selectedYear,
-    month: toMonthNumber(correiosFilters.month || bobinasFilters.referenceMonth || consolidatedFilters.month),
+    month: selectedMonth,
     uf: correiosFilters.uf || bobinasFilters.uf || consolidatedFilters.uf || '',
-  }), [bobinasFilters.referenceMonth, bobinasFilters.uf, consolidatedFilters.month, consolidatedFilters.uf, correiosFilters.month, correiosFilters.uf, selectedYear]);
+  }), [bobinasFilters.uf, consolidatedFilters.uf, correiosFilters.uf, selectedMonth, selectedYear]);
   const substitutionOverviewAnalytics = useMemo(
     () => buildSubstitutionAnalytics(substitutionRecords, correiosRecords, substitutionOverviewFilters),
     [correiosRecords, substitutionOverviewFilters, substitutionRecords],
@@ -1124,8 +1161,9 @@ export default function Overview({
     consolidatedAnalytics,
     correiosAnalytics,
     hasConsolidatedData,
+    selectedMonth,
     selectedYear,
-  }), [analytics, baseScope, bobinasExitRecords, consolidatedAnalytics, correiosAnalytics, hasConsolidatedData, selectedYear]);
+  }), [analytics, baseScope, bobinasExitRecords, consolidatedAnalytics, correiosAnalytics, hasConsolidatedData, selectedMonth, selectedYear]);
   const showConsolidatedOverview = baseScope === 'consolidado';
   const rangeRows = useMemo(
     () => (showConsolidatedOverview ? buildRangeRows(consolidatedAnalytics.rangeAnalysis) : []),

@@ -180,7 +180,7 @@ function UfHorizontalSummary({ isSelected, onClick, row }) {
         </div>
         <div>
           <dt>Caixas</dt>
-          <dd>{formatInteger(row.boxes)}</dd>
+          <dd>{formatDecimal(row.boxes)}</dd>
           <small>bobinas</small>
         </div>
       </dl>

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Bar,
   BarChart,
@@ -16,10 +16,12 @@ import {
   DollarSign,
   Download,
   Gauge,
+  Info,
   PackageCheck,
   RotateCcw,
   Search,
   Truck,
+  X,
 } from 'lucide-react';
 import AlertBox from '../components/AlertBox';
 import ChartCard from '../components/ChartCard';
@@ -29,6 +31,8 @@ import { formatCurrency, formatDecimal, formatInteger } from '../utils/calculati
 import { CONSOLIDATED_MONTHS } from '../utils/consolidatedConstants';
 import { EMPTY_CONSOLIDATED_FILTERS } from '../utils/consolidatedAnalytics';
 import { downloadCsv } from '../utils/csvExport';
+
+const CORREIOS_TIMING_NOTE = '* A aba Bobinas é preenchida durante o mês corrente; os dados dos Correios são alimentados uma vez no mês seguinte, após o fechamento da fatura. Por isso, em regra, o status tende a aparecer como Correios menor que solicitação durante o mês.';
 
 function setFilter(filters, onFiltersChange, key, value) {
   onFiltersChange({
@@ -438,15 +442,99 @@ function rankingColumns() {
     { key: 'destination', label: 'Destino', render: (row) => <span translate="no">{row.destination}</span> },
     { key: 'uf', label: 'UF', render: (row) => <span className="uf-pill" translate="no">{row.uf}</span> },
     { key: 'requestedView', label: 'Solicitações', value: (row) => formatInteger(row.requestedView), sortValue: (row) => row.requestedView },
-    { key: 'boxesView', label: 'Caixas', value: (row) => formatInteger(row.boxesView), sortValue: (row) => row.boxesView },
+    { key: 'boxesView', label: 'Caixas', value: (row) => formatDecimal(row.boxesView), sortValue: (row) => row.boxesView },
     { key: 'operationCost', label: 'Custo total', value: (row) => formatCurrency(row.operationCost), sortValue: (row) => row.operationCost },
     { key: 'status', label: 'Status', render: (row) => <StatusBadge status={row.status} /> },
   ];
 }
 
+function TimingNote() {
+  return <p className="table-note">{CORREIOS_TIMING_NOTE}</p>;
+}
+
+function ConsolidatedInfoModal({ analytics, onClose }) {
+  useEffect(() => {
+    function handleKeyDown(event) {
+      if (event.key === 'Escape') {
+        onClose();
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
+
+  const infoRows = [
+    {
+      title: 'Recorte analisado',
+      description: `${analytics.selectedYear}${analytics.selectedMonthLabel ? ` - ${analytics.selectedMonthLabel}` : ' - Janeiro a Dezembro'}.`,
+    },
+    {
+      title: 'Destinos no recorte',
+      description: `${formatInteger(analytics.summary.destinations)} destino(s), ${formatInteger(analytics.summary.requested)} solicitação(ões) e ${formatInteger(analytics.summary.correios)} envio(s) Correios.`,
+    },
+    {
+      title: 'Atualização Correios',
+      description: CORREIOS_TIMING_NOTE.replace('* ', ''),
+    },
+  ];
+
+  return (
+    <div className="modal-backdrop" role="presentation" onMouseDown={onClose}>
+      <section
+        aria-labelledby="consolidated-info-title"
+        aria-modal="true"
+        className="overview-info-modal"
+        role="dialog"
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        <header className="overview-info-modal-heading">
+          <div>
+            <p className="eyebrow">Consolidado por Bobinas</p>
+            <h2 id="consolidated-info-title">Informações e alertas</h2>
+            <span>Contexto operacional e ocorrências do recorte ativo.</span>
+          </div>
+          <button className="icon-button" title="Fechar" type="button" onClick={onClose}>
+            <X size={19} aria-hidden="true" />
+          </button>
+        </header>
+
+        <section className="overview-info-section">
+          <div className="overview-info-section-title">
+            <h3>Informações do recorte</h3>
+          </div>
+          <section className="impact-list">
+            {infoRows.map((row, index) => (
+              <article className="impact-item" key={row.title}>
+                <span>{index + 1}</span>
+                <div>
+                  <strong>{row.title}</strong>
+                  <p>{row.description}</p>
+                </div>
+              </article>
+            ))}
+          </section>
+        </section>
+
+        <section className="overview-info-section">
+          <div className="overview-info-section-title">
+            <h3>Alertas do consolidado</h3>
+            <span>{analytics.alerts.length} ocorrência(s)</span>
+          </div>
+          <AlertBox alerts={analytics.alerts} />
+        </section>
+      </section>
+    </div>
+  );
+}
+
 export default function Destinations({ analytics, datasetState, filters, hasData, onFiltersChange }) {
   const missingColumns = datasetState?.meta?.missingColumns || [];
-  const topUfChart = useMemo(() => analytics.ufSummary.slice(0, 10), [analytics.ufSummary]);
+  const topUfChart = useMemo(
+    () => analytics.ufSummary.filter((row) => row.uf !== 'Não informado').slice(0, 10),
+    [analytics.ufSummary],
+  );
+  const [isInfoOpen, setIsInfoOpen] = useState(false);
   const [detailFilters, setDetailFilters] = useState({
     search: '',
     uf: '',
@@ -485,6 +573,11 @@ export default function Destinations({ analytics, datasetState, filters, hasData
           <p>Análise de solicitações, custos, envios Correios e divergências por destino.</p>
         </div>
         <div className="heading-actions">
+          <button className="button secondary overview-alert-button" type="button" onClick={() => setIsInfoOpen(true)}>
+            <Info size={17} aria-hidden="true" />
+            Info/Alertas
+            {analytics.alerts.length ? <span>{analytics.alerts.length}</span> : null}
+          </button>
           <label className="field inline-field">
             <span>Ano analisado</span>
             <select
@@ -515,12 +608,14 @@ export default function Destinations({ analytics, datasetState, filters, hasData
         </article>
       ) : null}
 
+      {isInfoOpen ? <ConsolidatedInfoModal analytics={analytics} onClose={() => setIsInfoOpen(false)} /> : null}
+
       <section className="metrics-grid">
         <MetricCard icon={Building2} title="Destinos consolidados" value={formatInteger(analytics.summary.destinations)} />
         <MetricCard icon={Boxes} title="Solicitações de bobinas" value={formatInteger(analytics.summary.requested)} tone="primary" />
         <MetricCard icon={Truck} title="Envios Correios bobinas" value={formatInteger(analytics.summary.correios)} />
         <MetricCard icon={AlertTriangle} title="Diferença total" value={formatInteger(analytics.summary.difference)} tone={analytics.summary.difference ? 'warning' : 'success'} />
-        <MetricCard icon={PackageCheck} title="Caixas equivalentes" value={formatInteger(analytics.summary.boxes)} />
+        <MetricCard icon={PackageCheck} title="Caixas equivalentes" value={formatDecimal(analytics.summary.boxes)} />
         <MetricCard icon={DollarSign} title="Custo total bobinas" value={formatCurrency(analytics.summary.bobbinCost)} tone="success" />
         <MetricCard icon={DollarSign} title="Custo Correios" value={formatCurrency(analytics.summary.correiosCost)} tone="primary" />
         <MetricCard icon={DollarSign} title="Custo total operação" value={formatCurrency(analytics.summary.operationCost)} tone="warning" />
@@ -529,15 +624,6 @@ export default function Destinations({ analytics, datasetState, filters, hasData
       </section>
 
       <StatusCards analytics={analytics} filters={filters} onFiltersChange={onFiltersChange} />
-
-      <section className="section-heading">
-        <div>
-          <p className="eyebrow">Alertas do consolidado</p>
-          <h2>Pontos de atenção</h2>
-          <p>Prioridades calculadas sobre o recorte filtrado.</p>
-        </div>
-      </section>
-      <AlertBox alerts={analytics.alerts} />
 
       <section className="charts-grid two">
         <ChartCard title="Evolução mensal Jan-Dez" subtitle="Solicitações por mês no recorte filtrado">
@@ -558,7 +644,9 @@ export default function Destinations({ analytics, datasetState, filters, hasData
               <CartesianGrid stroke="#E5E7EB" strokeDasharray="4 4" />
               <XAxis dataKey="type" />
               <YAxis tickFormatter={(value) => formatInteger(value)} />
-              <Tooltip formatter={(value, name) => (name === 'Custo' ? formatCurrency(value) : formatInteger(value))} />
+              <Tooltip formatter={(value, name) => (
+                name === 'Custo' ? formatCurrency(value) : name === 'Caixas' ? formatDecimal(value) : formatInteger(value)
+              )} />
               <Legend />
               <Bar dataKey="units" fill="#2563EB" name="Unidades" radius={[4, 4, 0, 0]} />
               <Bar dataKey="boxes" fill="#16A34A" name="Caixas" radius={[4, 4, 0, 0]} />
@@ -569,11 +657,23 @@ export default function Destinations({ analytics, datasetState, filters, hasData
               { key: 'type', label: 'Tipo' },
               { key: 'units', label: 'Unidades', value: (row) => formatInteger(row.units), sortValue: (row) => row.units },
               { key: 'requests', label: 'Solicitações', value: (row) => formatInteger(row.requests), sortValue: (row) => row.requests },
-              { key: 'boxes', label: 'Caixas equivalentes', value: (row) => formatInteger(row.boxes), sortValue: (row) => row.boxes },
+              { key: 'boxes', label: 'Caixas equivalentes', value: (row) => formatDecimal(row.boxes), sortValue: (row) => row.boxes },
               { key: 'cost', label: 'Valor', value: (row) => formatCurrency(row.cost), sortValue: (row) => row.cost },
             ]}
             rows={analytics.typeComparison}
           />
+        </ChartCard>
+      </section>
+
+      <section className="overview-report-stack">
+        <ChartCard title="Ranking de destinos *" subtitle="Maiores solicitações do recorte">
+          <DataTable columns={rankingColumns()} rows={analytics.rankings.byRequested} />
+          <TimingNote />
+        </ChartCard>
+
+        <ChartCard title="Maiores impactos *" subtitle="Divergências e custos mais relevantes">
+          <DataTable columns={rankingColumns()} rows={analytics.rankings.byDifference.length ? analytics.rankings.byDifference : analytics.rankings.byCost} />
+          <TimingNote />
         </ChartCard>
       </section>
 
@@ -583,7 +683,7 @@ export default function Destinations({ analytics, datasetState, filters, hasData
             <BarChart data={topUfChart} layout="vertical">
               <CartesianGrid stroke="#E5E7EB" strokeDasharray="4 4" />
               <XAxis type="number" tickFormatter={(value) => formatInteger(value)} />
-              <YAxis dataKey="uf" type="category" width={54} />
+              <YAxis dataKey="uf" interval={0} type="category" width={54} />
               <Tooltip formatter={(value) => formatInteger(value)} />
               <Bar dataKey="requested" fill="#2563EB" name="Solicitação" radius={[0, 4, 4, 0]} />
             </BarChart>
@@ -591,12 +691,6 @@ export default function Destinations({ analytics, datasetState, filters, hasData
           <DataTable columns={ufColumns()} rows={analytics.ufSummary} />
         </ChartCard>
 
-        <ChartCard title="Ranking de destinos" subtitle="Maiores solicitações do recorte">
-          <DataTable columns={rankingColumns()} rows={analytics.rankings.byRequested} />
-        </ChartCard>
-      </section>
-
-      <section className="cards-grid three">
         <ChartCard title="Faixas de transações" subtitle="Distribuição fixa por volume">
           <DataTable
             columns={[
@@ -609,24 +703,21 @@ export default function Destinations({ analytics, datasetState, filters, hasData
             rows={analytics.rangeAnalysis}
           />
         </ChartCard>
-
-        <ChartCard title="Status operacional" subtitle="Classificação por divergência">
-          <DataTable
-            columns={[
-              { key: 'status', label: 'Status', render: (row) => <StatusBadge status={row.status} /> },
-              { key: 'destinations', label: 'Destinos', value: (row) => formatInteger(row.destinations), sortValue: (row) => row.destinations },
-              { key: 'requested', label: 'Solicitação', value: (row) => formatInteger(row.requested), sortValue: (row) => row.requested },
-              { key: 'correios', label: 'Correios', value: (row) => formatInteger(row.correios), sortValue: (row) => row.correios },
-              { key: 'difference', label: 'Diferença', value: (row) => formatInteger(row.difference), sortValue: (row) => row.difference },
-            ]}
-            rows={analytics.statusSummary}
-          />
-        </ChartCard>
-
-        <ChartCard title="Maiores impactos" subtitle="Divergências e custos mais relevantes">
-          <DataTable columns={rankingColumns()} rows={analytics.rankings.byDifference.length ? analytics.rankings.byDifference : analytics.rankings.byCost} />
-        </ChartCard>
       </section>
+
+      <ChartCard title="Status operacional *" subtitle="Classificação por divergência">
+        <DataTable
+          columns={[
+            { key: 'status', label: 'Status', render: (row) => <StatusBadge status={row.status} /> },
+            { key: 'destinations', label: 'Destinos', value: (row) => formatInteger(row.destinations), sortValue: (row) => row.destinations },
+            { key: 'requested', label: 'Solicitação', value: (row) => formatInteger(row.requested), sortValue: (row) => row.requested },
+            { key: 'correios', label: 'Correios', value: (row) => formatInteger(row.correios), sortValue: (row) => row.correios },
+            { key: 'difference', label: 'Diferença', value: (row) => formatInteger(row.difference), sortValue: (row) => row.difference },
+          ]}
+          rows={analytics.statusSummary}
+        />
+        <TimingNote />
+      </ChartCard>
 
       <ChartCard title="Tabela detalhada do consolidado" subtitle="Destino a destino com custos, tipos e divergências">
         <DetailTableFilters
