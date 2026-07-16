@@ -278,6 +278,8 @@ function rowHasBobbinType(row, type) {
 
 function filterDetailedRows(rows, filters) {
   const query = normalizeDetailText(filters.search);
+  const minTransactions = filters.minTransactions === '' ? null : Number(filters.minTransactions);
+  const maxTransactions = filters.maxTransactions === '' ? null : Number(filters.maxTransactions);
 
   return rows.filter((row) => {
     if (query) {
@@ -300,6 +302,12 @@ function filterDetailedRows(rows, filters) {
       return false;
     }
     if (filters.transactionRange && row.transactionRange !== filters.transactionRange) {
+      return false;
+    }
+    if (Number.isFinite(minTransactions) && row.transactions < minTransactions) {
+      return false;
+    }
+    if (Number.isFinite(maxTransactions) && row.transactions > maxTransactions) {
       return false;
     }
     return true;
@@ -347,6 +355,24 @@ function DetailTableFilters({ filters, onFiltersChange, options, totalRows, visi
         value={filters.transactionRange}
         onChange={(value) => updateFilter('transactionRange', value)}
       />
+      <label className="field">
+        <span>Qtd transações de</span>
+        <input
+          min="0"
+          type="number"
+          value={filters.minTransactions}
+          onChange={(event) => updateFilter('minTransactions', event.target.value)}
+        />
+      </label>
+      <label className="field">
+        <span>Qtd transações até</span>
+        <input
+          min="0"
+          type="number"
+          value={filters.maxTransactions}
+          onChange={(event) => updateFilter('maxTransactions', event.target.value)}
+        />
+      </label>
       <span className="detail-filter-count">
         {formatInteger(visibleRows)} de {formatInteger(totalRows)} destinos
       </span>
@@ -540,6 +566,8 @@ export default function Destinations({ analytics, datasetState, filters, hasData
     uf: '',
     bobbinType: 'all',
     transactionRange: '',
+    minTransactions: '',
+    maxTransactions: '',
   });
   const detailedRows = useMemo(
     () => filterDetailedRows(analytics.filteredRecords, detailFilters),
@@ -691,7 +719,7 @@ export default function Destinations({ analytics, datasetState, filters, hasData
           <DataTable columns={ufColumns()} rows={analytics.ufSummary} />
         </ChartCard>
 
-        <ChartCard title="Faixas de transações" subtitle="Distribuição fixa por volume">
+        <ChartCard title="Faixas de transações – Custo total operação" subtitle="Distribuição fixa por volume">
           <DataTable
             columns={[
               { key: 'range', label: 'Faixa' },

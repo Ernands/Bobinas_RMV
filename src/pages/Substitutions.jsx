@@ -502,6 +502,9 @@ export default function Substitutions({ correiosRecords = [], datasetState }) {
           <p className="eyebrow">Substituição_Equipamentos</p>
           <h2>Substituição de Equipamentos</h2>
           <p>Envios, custos, materiais, erros e UF com custo cruzado pela base Envios Correios.</p>
+          <p className="substitution-source-note">
+            Os dados abaixo são provenientes de planilha manual e consideram as datas de preparo, não as datas de postagem nos Correios. Por esse motivo, podem apresentar divergências em relação às informações da aba Correios.
+          </p>
         </div>
       </section>
 

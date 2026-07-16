@@ -1440,6 +1440,12 @@ tbody tr:last-child td {
   grid-template-columns: repeat(4, minmax(150px, 1fr));
 }
 
+.substitution-source-note {
+  max-width: 920px;
+  color: #dc2626 !important;
+  font-weight: 750;
+}
+
 .chart-toolbar {
   display: flex;
   justify-content: flex-end;
@@ -2955,7 +2961,7 @@ tbody tr:last-child td {
 
 .detail-filter-bar {
   display: grid;
-  grid-template-columns: minmax(260px, 1.25fr) minmax(110px, 0.55fr) minmax(160px, 0.75fr) minmax(190px, 0.85fr) auto;
+  grid-template-columns: minmax(240px, 1.2fr) minmax(90px, 0.45fr) minmax(150px, 0.7fr) minmax(180px, 0.8fr) minmax(130px, 0.55fr) minmax(130px, 0.55fr) auto;
   gap: 12px;
   align-items: end;
   margin-bottom: 12px;
